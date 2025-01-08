@@ -1,0 +1,5 @@
+mujoco>=3.2.6
+gym[classic_control]
+roboticstoolbox-python
+matplotlib>=3.8
+numpy
