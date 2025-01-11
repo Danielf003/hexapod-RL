@@ -74,10 +74,10 @@ def generate_scene():
         lspec = mujoco.MjSpec()
 
         link_name='l'
-        link_r = 0.01
+        link_r = 0.08
         jaxis = ([0,0,1],[0,1,0],[0,1,0],[0,1,0])
         dampings = (.001,)*4
-        ends = ([.03,0,0],[.06,0,.06],[.07,0,-.1],[0,0,-.06])
+        ends = ([.3,0,0],[.6,0,.6],[.7,0,-1.],[0,0,-.6])
         # ends = tuple([.1,0,0] for i in range(4)) #local for each link
         starts = (lpos, *ends[:-1])
 
@@ -102,12 +102,12 @@ def generate_scene():
 
         return link_bodies[0], lspec
 
-    l, w, h = .4, .2, .05
+    l, w, h = 4., 2., .5
     wR = 0.04
     hub_thickness = wR
     n_roll = 8
 
-    box = spec.worldbody.add_body(name="box", pos=[0,0,.1+h/2])
+    box = spec.worldbody.add_body(name="box", pos=[0,0,1+h/2])
     box.add_freejoint()
     box.add_geom(size=[w/2,l/2,h/2], type=mujoco.mjtGeom.mjGEOM_BOX)
     box.add_site(name='box_center')
