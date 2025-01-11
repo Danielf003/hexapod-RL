@@ -22,13 +22,38 @@ if __name__ == '__main__':
     simh = SimHandler(model_xml, None, simlength=simtime, simout=simout)  
 
     # define control function
-    # def ctrl_f(t, data):
-    #     # we can access mjData here
-    #     print(data.qpos[:4])
-    #     return np.array([np.sin(6*t),-np.sin(6*t),np.sin(6*t),-np.sin(6*t)])*0.2
+    def ctrl_f(t, model, data):
+        # print(model.jnt_dofadr)
+        legdofs=model.jnt_dofadr[1:]
+        legqpos=model.jnt_qposadr[1:]
+        # print(legqpos)
+
+        nj = 4
+        nlegs = 6
+
+        qdes = np.zeros(nj*nlegs)
+        dqdes = np.zeros(nj*nlegs)
+        ddqdes = np.zeros(nj*nlegs)
+        e = data.qpos[legqpos]-qdes
+        de = data.qvel[legdofs]-dqdes
+
+        # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
+        kp, kd = np.diag([5000,4000,3000,13000]*nlegs), np.diag([90,300,200,200]*nlegs)
+        u = np.zeros(model.nv)
+        u[legdofs] = ddqdes - kp@e - kd@de
+        
+        # u[legdofs] = np.array([1,1,1,1])
+        # print(model.jnt_dofadr)
+        Mu = np.empty(model.nv)
+        mujoco.mj_mulM(model, data, Mu, u)#+c)
+        tau = Mu + data.qfrc_bias
+        tau = tau[legdofs]
+        # print(tau)
+        # print(data.qpos[:4])
+        return tau
 
     # run MuJoCo simulation
-    fin_dur = simh.simulate(is_slowed=True, control_func=None)
+    fin_dur = simh.simulate(is_slowed=True, control_func=ctrl_f)
 
     # simout.plot(fin_dur, ['Скорость центра робота [м/с]'], [['v_x','v_y','v_z']])
 

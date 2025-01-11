@@ -102,7 +102,7 @@ class SimHandler:
                 # mj_step can be replaced with code that also evaluates
                 # a policy and applies a control signal before stepping the physics.
                 if self.conrol_func is not None:
-                    self.data.ctrl = self.conrol_func(current_step * self.model.opt.timestep, self.data, *self.conrol_func_args)
+                    self.data.ctrl = self.conrol_func(current_step * self.model.opt.timestep, self.model, self.data, *self.conrol_func_args)
                 mujoco.mj_step(self.model, self.data)
 
                 # Progressive time-keeping

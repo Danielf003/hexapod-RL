@@ -68,76 +68,46 @@ def generate_scene():
     # mecanum2_visual = spec.add_mesh(name='mesh2', file=join(mesh_path,wheel_filename), scale=[.78,.78,-.78])
     
     
-    def create_leg(wtype, R, hub_thickness, n_roller=8, roller_angle=np.pi/4):
+    def create_leg():
         lpos = [0,0,0]
-
-        # hub_r = .9*R
-        # roller_r = .8*R
-
-        # roller_damping = .0001
-        # hub_mass = 0.02
-        # hub_damping = .001
-
-        # step = (2*np.pi) / n_roller
-        # chord = 2*(R - roller_r)*np.sin(step/2) #distance between neighbor pins
-        # psi = roller_angle
-        # # for desired roller angle this must hold: chord/h == np.tan(psi)
-        # h = chord/np.tan(psi)
 
         lspec = mujoco.MjSpec()
 
-        link_name='link'
+        link_name='l'
+        link_r = 0.01
         jaxis = ([0,0,1],[0,1,0],[0,1,0],[0,1,0])
-        # cfg = 
-        for i in range(len(cfg)):
-            link1 = lspec.worldbody.add_body(name=f'{link_name}_1', pos=lpos, 
+        dampings = (.001,)*4
+        ends = ([.03,0,0],[.06,0,.06],[.07,0,-.1],[0,0,-.06])
+        # ends = tuple([.1,0,0] for i in range(4)) #local for each link
+        starts = (lpos, *ends[:-1])
+
+        # cfg = {'damping':}
+
+        parent = lspec.worldbody
+        link_bodies = []
+        for i in range(len(jaxis)):
+            link = parent.add_body(name=f'{link_name}{i+1}', pos=starts[i], 
                                         #    mass=hub_mass, ipos=[0,0,0], 
                                         #    iquat=[0.707107, 0, 0, 0.707107], 
                                         #    inertia=[0.0524193, 0.0303095, 0.0303095]
                                         )
-            hub.add_joint(name=hub_name, axis=[0,1,0], damping=hub_damping)
-            hub.add_geom(size=[hub_r,hub_thickness/2,0], quat=[0.707107, 0.707107, 0, 0], 
-                        type=mujoco.mjtGeom.mjGEOM_CYLINDER, group=1
+            link.add_joint(name=f'{link_name}{i+1}', axis=jaxis[i], damping=dampings[i])
+            link.add_geom(size=[link_r,0,0], fromto=[0,0,0,*ends[i]],
+                        type=mujoco.mjtGeom.mjGEOM_CAPSULE, group=1
                         #  contype=1, conaffinity=0,
                         #  rgba=[0.2, 0.2, 0.2, 0.5]
                         )
+            parent = link
+            link_bodies.append(link)
 
-        # for i in range(n_roller):
-        #     roller_name = 'roller_' + str(i)
-        #     joint_name = 'slip_' + str(i)
-
-        #     pin_1 = np.array([(R - roller_r)*np.cos(step*i), -h/2, (R - roller_r)*np.sin(step*i)])
-
-        #     if wtype == 0:
-        #         if i == n_roller-1:
-        #             pin_2 = np.array([(R - roller_r)*np.cos(step*0), h/2, (R - roller_r)*np.sin(step*0)])
-        #         else:
-        #             pin_2 = np.array([(R - roller_r)*np.cos(step*(i+1)), h/2, (R - roller_r)*np.sin(step*(i+1))])
-        #     else:
-        #         if i == 0:
-        #             pin_2 = np.array([(R - roller_r)*np.cos(step*(n_roller-1)), h/2, (R - roller_r)*np.sin(step*(n_roller-1))])
-        #         else:
-        #             pin_2 = np.array([(R - roller_r)*np.cos(step*(i-1)), h/2, (R - roller_r)*np.sin(step*(i-1))])
-        #     axis = pin_2 - pin_1
-        #     pos = pin_1 + axis/2
-
-        #     roller = hub.add_body(name=roller_name, pos=pos,
-        #                           ipos=[0,0,0], #iquat=[0.711549, 0.711549, 0, 0], 
-        #                           inertia=[.00001, .00001, .00001], mass=.001)
-        #     roller.add_joint(name=joint_name, axis=axis, 
-        #                      damping=roller_damping, limited=False, actfrclimited=False)
-        #     roller.add_geom(size=[roller_r,0,0], quat=[1, 0, 0, 0], group=1
-        #                     # contype=1, conaffinity=0, 
-        #                     # rgba=[0.2, 0.2, 0.2, 1]
-        #                     )
-        return link1, lspec
+        return link_bodies[0], lspec
 
     l, w, h = .4, .2, .05
     wR = 0.04
     hub_thickness = wR
     n_roll = 8
 
-    box = spec.worldbody.add_body(name="box", pos=[0,0,wR+h/2])
+    box = spec.worldbody.add_body(name="box", pos=[0,0,.1+h/2])
     box.add_freejoint()
     box.add_geom(size=[w/2,l/2,h/2], type=mujoco.mjtGeom.mjGEOM_BOX)
     box.add_site(name='box_center')
@@ -146,25 +116,27 @@ def generate_scene():
     dy = .8*l/2
     dz = -h/2
 
-    site1 = box.add_site(pos=[dx,dy,dz], euler=[0,0,-90]) # front right
-    site2 = box.add_site(pos=[-dx,dy,dz], euler=[0,0,-90]) # front left
-    site3 = box.add_site(pos=[-dx,-dy,dz], euler=[0,0,-90]) # rear left
-    site4 = box.add_site(pos=[dx,-dy,dz], euler=[0,0,-90]) # rear right
+    leg_rot = 30
+    site1 = box.add_site(pos=[dx,dy,dz], euler=[0,0,0+leg_rot]) # front right
+    site2 = box.add_site(pos=[-dx,dy,dz], euler=[0,0,180-leg_rot]) # front left
+    site3 = box.add_site(pos=[-dx,0,dz], euler=[0,0,180]) # center left
+    site4 = box.add_site(pos=[-dx,-dy,dz], euler=[0,0,180+leg_rot]) # rear left
+    site5 = box.add_site(pos=[dx,-dy,dz], euler=[0,0,0-leg_rot]) # rear right
+    site6 = box.add_site(pos=[dx,0,dz], euler=[0,0,0]) # center right
     
-    site0 = spec.worldbody.add_site(pos=[0,0,0.5])
+    # site0 = spec.worldbody.add_site(pos=[0,0,0.5])
+    # site01 = spec.worldbody.add_site(pos=[0.5,0,0.5])
     
     hub_name = 'hub'
 
-    leg_body1, _ = create_leg(0, wR, hub_thickness, n_roll, hub_name=hub_name)
+    leg_body1, _ = create_leg()
 
-    # wheel_body1, _ = create_wheel(0, wR, hub_thickness, n_roll, hub_name=hub_name)
-    # wheel_body2, _ = create_wheel(1, wR, hub_thickness, n_roll, hub_name=hub_name)
-    # w1 = site1.attach(wheel_body1, 'w1-', '')
-    # w2 = site2.attach(wheel_body2, 'w2-', '')
-    # w3 = site3.attach(wheel_body1, 'w3-', '')
-    # w4 = site4.attach(wheel_body2, 'w4-', '')
-
-    leg1 = site0.attach(leg_body1, 'leg1-', '')
+    leg1 = site1.attach(leg_body1, 'leg1-', '')
+    leg2 = site2.attach(leg_body1, 'leg2-', '')
+    leg3 = site3.attach(leg_body1, 'leg3-', '')
+    leg4 = site4.attach(leg_body1, 'leg4-', '')
+    leg5 = site5.attach(leg_body1, 'leg5-', '')
+    leg6 = site6.attach(leg_body1, 'leg6-', '')
 
     # spec.compiler.inertiagrouprange = [0,1]
 
@@ -185,9 +157,11 @@ def generate_scene():
     # Hub and visual wheel are disabled
 
     input_saturation = [-.4,.4] # Nm
-    # for i in range(4):
-    #     spec.add_actuator(name=f'torque{i+1}', target=f'w{i+1}-'+hub_name, trntype=mujoco.mjtTrn.mjTRN_JOINT,
-    #                       ctrllimited=True, ctrlrange=input_saturation)
+    for i in range(6):
+        for j in range(4):
+            spec.add_actuator(name=f'leg{i+1}-l{j+1}', target=f'leg{i+1}-l{j+1}', trntype=mujoco.mjtTrn.mjTRN_JOINT,
+                            #   ctrllimited=True, ctrlrange=input_saturation
+                              )
 
     return spec
 
