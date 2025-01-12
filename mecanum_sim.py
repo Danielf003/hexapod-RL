@@ -49,7 +49,7 @@ class SimHandler:
             # getattr(self.model.vis, 'global_').offwidth = recorder.w
             # getattr(self.model.vis, 'global_').offheight = recorder.h
 
-    def simulate(self, const_control=None, control_func=None, is_slowed=True, control_func_args=()):
+    def simulate(self, const_control=None, control_func=None, is_slowed=True, control_func_args=(), qpos0=None):
         """
         Run prepared MuJoCo simulation.
 
@@ -60,9 +60,11 @@ class SimHandler:
         Returns:
             float: the time when the simulation has stopped.
         """
-        # mujoco.mj_resetDataKeyframe(model, data, 0)
         mujoco.mj_resetData(self.model, self.data)
+        mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
 
+        if qpos0 is not None:
+            self.model.qpos0 = qpos0
         self.conrol_func = control_func
         self.conrol_func_args = control_func_args
         if const_control:

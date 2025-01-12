@@ -75,9 +75,11 @@ def generate_scene():
 
         link_name='l'
         link_r = 0.08
-        jaxis = ([0,0,1],[0,1,0],[0,1,0],[0,1,0])
+        jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
-        ends = ([.3,0,0],[.6,0,.6],[.7,0,-1.],[0,0,-.6])
+        # ends = ([.3,0,0],[.6,0,.6],[.7,0,-1.],[0,0,-.6])
+        l1,l2,l3,l4 = .3, np.linalg.norm(np.array([.6,0,.6])), np.linalg.norm(np.array([.7,0,-1.])), np.linalg.norm(np.array([0,0,-.6]))
+        ends = ([l1,0,0],[l2,0,0],[l3,0,0],[l4,0,0])
         # ends = tuple([.1,0,0] for i in range(4)) #local for each link
         starts = (lpos, *ends[:-1])
 
@@ -106,8 +108,8 @@ def generate_scene():
     wR = 0.04
     hub_thickness = wR
     n_roll = 8
-
-    box = spec.worldbody.add_body(name="box", pos=[0,0,1+h/2])
+    box_pos = [0,0,1+h/2]
+    box = spec.worldbody.add_body(name="box", pos=box_pos)
     box.add_freejoint()
     box.add_geom(size=[w/2,l/2,h/2], type=mujoco.mjtGeom.mjGEOM_BOX)
     box.add_site(name='box_center')
@@ -116,7 +118,7 @@ def generate_scene():
     dy = .8*l/2
     dz = -h/2
 
-    leg_rot = 30
+    leg_rot = 0
     site1 = box.add_site(pos=[dx,dy,dz], euler=[0,0,0+leg_rot]) # front right
     site2 = box.add_site(pos=[-dx,dy,dz], euler=[0,0,180-leg_rot]) # front left
     site3 = box.add_site(pos=[-dx,0,dz], euler=[0,0,180]) # center left
@@ -162,6 +164,23 @@ def generate_scene():
             spec.add_actuator(name=f'leg{i+1}-l{j+1}', target=f'leg{i+1}-l{j+1}', trntype=mujoco.mjtTrn.mjTRN_JOINT,
                             #   ctrllimited=True, ctrlrange=input_saturation
                               )
+            
+    initial_q = [0, 1.22, 4.01, 5.76] # for 1 leg
+    qpos0 = np.zeros(31)
+    legqpos = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+    # legqpos=spec.model.jnt_qposadr[1:]
+    qpos0[legqpos] = np.asarray(initial_q * 6)
+    qpos0[:3] = np.asarray(box_pos)
+
+    spec.add_key(name='q0', qpos=qpos0)
 
     return spec
 
+if __name__ == '__main__':
+    spec = generate_scene()
+
+    spec.compile()
+    model_xml = spec.to_xml()
+
+    with open("hexapod.xml", "w") as text_file:
+            text_file.write(model_xml)

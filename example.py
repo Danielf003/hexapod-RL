@@ -30,17 +30,31 @@ if __name__ == '__main__':
 
         nj = 4
         nlegs = 6
-
-        qdes = np.zeros(nj*nlegs)
-        dqdes = np.zeros(nj*nlegs)
-        ddqdes = np.zeros(nj*nlegs)
-        e = data.qpos[legqpos]-qdes
-        de = data.qvel[legdofs]-dqdes
+        qdes = np.array([0, 1.22, 4.01, 5.76])
+        # qdes = np.zeros(nj*1)
+        dqdes = np.zeros(nj*1)
+        ddqdes = np.zeros(nj*1)
 
         # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
-        kp, kd = np.diag([5000,4000,3000,13000]*nlegs), np.diag([90,300,200,200]*nlegs)
+        kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
         u = np.zeros(model.nv)
-        u[legdofs] = ddqdes - kp@e - kd@de
+        e = np.zeros(nj*nlegs)
+        de = np.zeros(nj*nlegs)
+        
+        for i in range(6):
+            # if i % 2 == 0:
+            #     qdes = qdes1
+            #     dqdes = dqdes1
+            #     ddqdes = ddqdes1
+            # else:
+            #     qdes = qdes2
+            #     dqdes = dqdes2
+            #     ddqdes = ddqdes2
+
+            e[0+i*4:4+i*4] = data.qpos[legqpos][0+i*4:4+i*4]-qdes
+            de[0+i*4:4+i*4] = data.qvel[legdofs][0+i*4:4+i*4]-dqdes
+            
+            u[legdofs[0+i*4:4+i*4]] = ddqdes - kp@e[0+i*4:4+i*4] - kd@de[0+i*4:4+i*4]
         
         # u[legdofs] = np.array([1,1,1,1])
         # print(model.jnt_dofadr)
