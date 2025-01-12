@@ -41,7 +41,7 @@ if __name__ == '__main__':
         e = np.zeros(nj*nlegs)
         de = np.zeros(nj*nlegs)
         
-        for i in range(6):
+        for i in range(nlegs):
             # if i % 2 == 0:
             #     qdes = qdes1
             #     dqdes = dqdes1
@@ -67,7 +67,7 @@ if __name__ == '__main__':
         return tau
 
     # run MuJoCo simulation
-    fin_dur = simh.simulate(is_slowed=True, control_func=ctrl_f)
+    fin_dur = simh.simulate(is_slowed=False, control_func=ctrl_f)
 
     # simout.plot(fin_dur, ['Скорость центра робота [м/с]'], [['v_x','v_y','v_z']])
 

@@ -106,6 +106,7 @@ def generate_scene():
 
     l, w, h = 4., 2., .5
     wR = 0.04
+    n_legs = 6
     hub_thickness = wR
     n_roll = 8
     box_pos = [0,0,1+h/2]
@@ -125,6 +126,7 @@ def generate_scene():
     site4 = box.add_site(pos=[-dx,-dy,dz], euler=[0,0,180+leg_rot]) # rear left
     site5 = box.add_site(pos=[dx,-dy,dz], euler=[0,0,0-leg_rot]) # rear right
     site6 = box.add_site(pos=[dx,0,dz], euler=[0,0,0]) # center right
+    sites = [site1,site2,site3,site4,site5,site6]
     
     # site0 = spec.worldbody.add_site(pos=[0,0,0.5])
     # site01 = spec.worldbody.add_site(pos=[0.5,0,0.5])
@@ -132,13 +134,14 @@ def generate_scene():
     hub_name = 'hub'
 
     leg_body1, _ = create_leg()
-
-    leg1 = site1.attach(leg_body1, 'leg1-', '')
-    leg2 = site2.attach(leg_body1, 'leg2-', '')
-    leg3 = site3.attach(leg_body1, 'leg3-', '')
-    leg4 = site4.attach(leg_body1, 'leg4-', '')
-    leg5 = site5.attach(leg_body1, 'leg5-', '')
-    leg6 = site6.attach(leg_body1, 'leg6-', '')
+    
+    for i in range(n_legs):
+        leg1 = sites[i].attach(leg_body1, f'leg{i+1}-', '')
+    # leg2 = site2.attach(leg_body1, 'leg2-', '')
+    # leg3 = site3.attach(leg_body1, 'leg3-', '')
+    # leg4 = site4.attach(leg_body1, 'leg4-', '')
+    # leg5 = site5.attach(leg_body1, 'leg5-', '')
+    # leg6 = site6.attach(leg_body1, 'leg6-', '')
 
     # spec.compiler.inertiagrouprange = [0,1]
 
@@ -159,17 +162,18 @@ def generate_scene():
     # Hub and visual wheel are disabled
 
     input_saturation = [-.4,.4] # Nm
-    for i in range(6):
+    for i in range(n_legs):
         for j in range(4):
             spec.add_actuator(name=f'leg{i+1}-l{j+1}', target=f'leg{i+1}-l{j+1}', trntype=mujoco.mjtTrn.mjTRN_JOINT,
                             #   ctrllimited=True, ctrlrange=input_saturation
                               )
-            
+    
+    mjmodel = spec.compile()
     initial_q = [0, 1.22, 4.01, 5.76] # for 1 leg
-    qpos0 = np.zeros(31)
-    legqpos = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
-    # legqpos=spec.model.jnt_qposadr[1:]
-    qpos0[legqpos] = np.asarray(initial_q * 6)
+    qpos0 = np.zeros(mjmodel.nq)
+    # legqpos = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+    legqpos=mjmodel.jnt_qposadr[1:]
+    qpos0[legqpos] = np.asarray(initial_q * n_legs)
     qpos0[:3] = np.asarray(box_pos)
 
     spec.add_key(name='q0', qpos=qpos0)
