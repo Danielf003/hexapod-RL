@@ -1,6 +1,6 @@
 import numpy as np
 import mujoco
-
+from Traj_thetas import thetas_traj
 from mecanum_gen import generate_scene
 from mecanum_sim import SensorOutput, SimHandler
 
@@ -35,6 +35,17 @@ if __name__ == '__main__':
         dqdes = np.zeros(nj*1)
         ddqdes = np.zeros(nj*1)
 
+        T_f = 2
+        T_b = 0
+        L = 2
+        alfa = 0.26
+        H = 1
+        delta_T = 0
+        qdes1, dqdes1, ddqdes1= thetas_traj(t, T_f, T_b, L, alfa, H, delta_T)
+        qdes1[2] = -qdes1[2]
+        qdes2, dqdes2, ddqdes2= thetas_traj(t, T_f, T_b, L, alfa, H, T_f)
+        qdes2[2] = -qdes2[2]
+
         # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
         kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
         u = np.zeros(model.nv)
@@ -42,14 +53,20 @@ if __name__ == '__main__':
         de = np.zeros(nj*nlegs)
         
         for i in range(nlegs):
-            # if i % 2 == 0:
-            #     qdes = qdes1
-            #     dqdes = dqdes1
-            #     ddqdes = ddqdes1
-            # else:
-            #     qdes = qdes2
-            #     dqdes = dqdes2
-            #     ddqdes = ddqdes2
+            if i in (0, 2, 4):
+                    qdes = qdes1
+                    # qdes[2] = qdes1[2] - 2*np.pi
+                    # qdes[3] = qdes1[3] - 2*np.pi
+                    dqdes = dqdes1
+                    ddqdes = ddqdes1
+                    print(f'i = {i}, qdes = {qdes}')
+            else:
+                    qdes = qdes2
+                    # qdes[2] = -qdes2[2] - 2*np.pi
+                    # qdes[3] = -qdes2[3] - 2*np.pi
+                    dqdes = dqdes2
+                    ddqdes = ddqdes2
+                    print(f'i = {i}, qdes = {qdes}')
 
             e[0+i*4:4+i*4] = data.qpos[legqpos][0+i*4:4+i*4]-qdes
             de[0+i*4:4+i*4] = data.qvel[legdofs][0+i*4:4+i*4]-dqdes

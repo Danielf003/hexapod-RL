@@ -169,7 +169,7 @@ def generate_scene():
                               )
     
     mjmodel = spec.compile()
-    initial_q = [0, 1.22, 4.01, 5.76] # for 1 leg
+    initial_q = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi] # for 1 leg
     qpos0 = np.zeros(mjmodel.nq)
     # legqpos = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
     legqpos=mjmodel.jnt_qposadr[1:]
