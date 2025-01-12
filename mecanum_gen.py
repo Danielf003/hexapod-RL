@@ -27,8 +27,8 @@ def generate_scene():
     spec = mujoco.MjSpec()
 
     # spec.option.timestep = 0.05
-    # getattr(spec.visual, 'global').azimuth = 45
-    # getattr(spec.visual, 'global').elevation = 0
+    getattr(spec.visual, 'global').azimuth = -135
+    getattr(spec.visual, 'global').elevation = -20
     spec.visual.scale.jointlength = 3.6
     spec.visual.scale.jointwidth = 0.12
 
@@ -37,7 +37,7 @@ def generate_scene():
     # mjcf_model.visual.rgba.joint = j_color
     # spec.visual.rgba.constraint = j_color
 
-    spec.stat.extent = 0.6
+    spec.stat.extent = 4.5
     spec.stat.center = [0,0,.3]
 
     spec.add_texture(name="//unnamed_texture_0", type=mujoco.mjtTexture.mjTEXTURE_SKYBOX, 
