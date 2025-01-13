@@ -1,7 +1,9 @@
 __credits__ = ["Kallinteris-Andreas"]
 
 from typing import Dict, Tuple, Union
+import os
 
+import mujoco
 import numpy as np
 
 from gymnasium import utils
@@ -10,7 +12,7 @@ from gymnasium.spaces import Box
 
 
 DEFAULT_CAMERA_CONFIG = {
-    "trackbodyid": 2,
+    "trackbodyid": 0,
     "distance": 3.0,
     "lookat": np.array((0.0, 0.0, 1.15)),
     "elevation": -20.0,
@@ -165,7 +167,7 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
 
     def __init__(
         self,
-        xml_file: str = "hopper.xml",
+        xml_file: str =  os.path.join(os.getcwd(),"hexapod.xml"),
         frame_skip: int = 4,
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
         forward_reward_weight: float = 1.0,
@@ -258,18 +260,19 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
 
     @property
     def is_healthy(self):
-        z, angle = self.data.qpos[1:3]
-        state = self.state_vector()[2:]
+        is_healthy = True
+        # z, angle = self.data.qpos[1:3]
+        # state = self.state_vector()[2:]
 
-        min_state, max_state = self._healthy_state_range
-        min_z, max_z = self._healthy_z_range
-        min_angle, max_angle = self._healthy_angle_range
+        # min_state, max_state = self._healthy_state_range
+        # min_z, max_z = self._healthy_z_range
+        # min_angle, max_angle = self._healthy_angle_range
 
-        healthy_state = np.all(np.logical_and(min_state < state, state < max_state))
-        healthy_z = min_z < z < max_z
-        healthy_angle = min_angle < angle < max_angle
+        # healthy_state = np.all(np.logical_and(min_state < state, state < max_state))
+        # healthy_z = min_z < z < max_z
+        # healthy_angle = min_angle < angle < max_angle
 
-        is_healthy = all((healthy_state, healthy_z, healthy_angle))
+        # is_healthy = all((healthy_state, healthy_z, healthy_angle))
 
         return is_healthy
 
@@ -283,8 +286,46 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         observation = np.concatenate((position, velocity)).ravel()
         return observation
 
+    def ctrl_q2tau(self, qdes, dqdes, ddqdes):
+        legdofs=self.model.jnt_dofadr[1:]
+        legqpos=self.model.jnt_qposadr[1:]
+
+        nj = 4
+        nlegs = 6
+
+        # qdes = np.zeros(nj*nlegs)
+        # dqdes = np.zeros(nj*nlegs)
+        # ddqdes = np.zeros(nj*nlegs)
+        e = self.data.qpos[legqpos]-qdes
+        de = self.data.qvel[legdofs]-dqdes
+
+        # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
+        kp, kd = np.diag([5000,4000,3000,13000]*nlegs), np.diag([90,300,200,200]*nlegs)
+        u = np.zeros(self.model.nv)
+        u[legdofs] = ddqdes - kp@e - kd@de
+        
+        # u[legdofs] = np.array([1,1,1,1])
+        # print(model.jnt_dofadr)
+        Mu = np.empty(self.model.nv)
+        mujoco.mj_mulM(self.model, self.data, Mu, u)#+c)
+        tau = Mu + self.data.qfrc_bias
+        tau = tau[legdofs]
+        # print(tau)
+        # print(data.qpos[:4])
+        return tau
+
+    def action2control(self, inp):
+        # self.data
+        # self.model
+        nj = 4
+        nlegs = 6
+        
+        ctrl = self.ctrl_q2tau()
+        return ctrl
+
     def step(self, action):
         x_position_before = self.data.qpos[0]
+        # ctrl = self.action2control(action)
         self.do_simulation(action, self.frame_skip)
         x_position_after = self.data.qpos[0]
         x_velocity = (x_position_after - x_position_before) / self.dt
