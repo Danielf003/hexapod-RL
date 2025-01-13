@@ -5,6 +5,35 @@ from Traj_thetas import thetas_traj
 from mecanum_gen import generate_scene
 from mecanum_sim import SensorOutput, SimHandler
 
+class InputHolder:
+    def __init__(self, timestep, input_func):
+        self.timestep = timestep
+        self.input_func = input_func
+    def update(self, action, current_time):
+        if current_time == 0:
+            self.Tupd = 2*action[0]
+            self.nsteps = int(self.Tupd/self.timestep)
+            self.cnt = 0
+            self.memory = self.input_func(action)
+        if self.cnt >= self.nsteps:
+            self.memory = self.input_func(action)
+            self.cnt = 0
+            self.Tupd = 2*action[0]
+            self.nsteps = int(self.Tupd/self.timestep)
+        else:
+            self.cnt += 1
+
+    def get_output(self):
+        # print(f'cnt: {self.cnt}')
+        return self.memory
+
+def func(action):
+    T_f, T_b, L, alpha = action[:4]
+    delta_thetas = np.asarray(action[4:]).reshape((4,))
+    print(delta_thetas.shape)
+    C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alpha, delta_thetas)
+
+    return T_f, T_b, C_x, C_y, C_z, a
 
 if __name__ == '__main__':
     spec = generate_scene()
@@ -13,7 +42,7 @@ if __name__ == '__main__':
     spec.compile()
     model_xml = spec.to_xml()
 
-    simtime = 100
+    simtime = 20
 
     # prepare data logger
     # simout = SensorOutput(sensor_names=[sen.name for sen in spec.sensors],
@@ -21,17 +50,15 @@ if __name__ == '__main__':
     simout = None
     # prepare sim params
     simh = SimHandler(model_xml, None, simlength=simtime, simout=simout)  
-
-
+    memory = InputHolder(simh.timestep, func)
     
     # define control function
-    def ctrl_f(t, model, data):
-        # print(model.jnt_dofadr)
+    def ctrl_f(t, model, data, holder: InputHolder):
         legdofs=model.jnt_dofadr[1:]
         legqpos=model.jnt_qposadr[1:]
-        # print(legqpos)
 
         use_traj = 1
+        use_memory = 1
 
         nj = 4
         nlegs = 6
@@ -39,8 +66,6 @@ if __name__ == '__main__':
         qdes = np.zeros(nj*1)
         dqdes = np.zeros(nj*1)
         ddqdes = np.zeros(nj*1)
-
-        T_upd = 4
 
         # Выходы НС
         T_f = 2
@@ -50,20 +75,13 @@ if __name__ == '__main__':
         # H = 1
         delta_T = T_f
         delta_thetas = np.array([0, 0.25,-0.2,0])
-        print(t)
-        # if t == 0.:
-        #     # C_x = np.zeros((8, 1))
-        #     # C_y = np.zeros((8, 1))
-        #     # C_z = np.zeros((8, 1))
-            
-        #     # a = np.zeros((4, 5))
-        C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
+        if use_memory:
+            holder.update([T_f, T_b, L, alfa, delta_thetas], t)
+            T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
+        else:
+            C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)        
 
         if use_traj:
-
-            if t % T_upd == 0:
-                 C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
-                 
             qdes1, dqdes1, ddqdes1= thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
             qdes1[2] = -qdes1[2]
             qdes2, dqdes2, ddqdes2= thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
@@ -112,7 +130,7 @@ if __name__ == '__main__':
         return tau
 
     # run MuJoCo simulation
-    fin_dur = simh.simulate(is_slowed=False, control_func=ctrl_f)
+    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f, control_func_args=(memory,))
 
     # simout.plot(fin_dur, ['Скорость центра робота [м/с]'], [['v_x','v_y','v_z']])
 
