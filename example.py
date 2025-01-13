@@ -22,6 +22,8 @@ if __name__ == '__main__':
     # prepare sim params
     simh = SimHandler(model_xml, None, simlength=simtime, simout=simout)  
 
+
+    
     # define control function
     def ctrl_f(t, model, data):
         # print(model.jnt_dofadr)
@@ -48,14 +50,18 @@ if __name__ == '__main__':
         # H = 1
         delta_T = T_f
         delta_thetas = np.array([0, 0.25,-0.2,0])
+        print(t)
+        # if t == 0.:
+        #     # C_x = np.zeros((8, 1))
+        #     # C_y = np.zeros((8, 1))
+        #     # C_z = np.zeros((8, 1))
+            
+        #     # a = np.zeros((4, 5))
+        C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
 
         if use_traj:
 
             if t % T_upd == 0:
-                #  C_x = np.zeros((8, 1))
-                #  C_y = np.zeros((8, 1))
-                #  C_z = np.zeros((8, 1))
-                #  a = np.zeros((4, 5))
                  C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
                  
             qdes1, dqdes1, ddqdes1= thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
