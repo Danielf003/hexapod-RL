@@ -77,9 +77,16 @@ def generate_scene():
         link_r = 0.08
         jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
+
+        initial_q = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi] # for 1 leg
+        initial_q_glob = [0, initial_q[1], initial_q[1]+initial_q[2], initial_q[1]+initial_q[2]+initial_q[3]]
+        RyT = lambda ang: np.array([[np.cos(ang),0,-np.sin(ang)],[0,0,0],[np.sin(ang),0,np.cos(ang)]])
         # ends = ([.3,0,0],[.6,0,.6],[.7,0,-1.],[0,0,-.6])
+        # l1,l2,l3,l4 = .3, np.linalg.norm(np.array([.6,0,.6])), np.linalg.norm(np.array([.7,0,-1.])), np.linalg.norm(np.array([0,0,-.6]))
         l1,l2,l3,l4 = .3, np.linalg.norm(np.array([.6,0,.6])), np.linalg.norm(np.array([.7,0,-1.])), np.linalg.norm(np.array([0,0,-.6]))
         ends = ([l1,0,0],[l2,0,0],[l3,0,0],[l4,0,0])
+        ends = tuple(RyT(ang) @ np.asarray(en) for en, ang in zip(ends,initial_q_glob))
+
         # ends = tuple([.1,0,0] for i in range(4)) #local for each link
         starts = (lpos, *ends[:-1])
 
@@ -169,7 +176,8 @@ def generate_scene():
                               )
     
     mjmodel = spec.compile()
-    initial_q = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi] # for 1 leg
+    # initial_q = [0, 1.22, 4.01, 5.76] # for 1 leg
+    initial_q = [0,0,0,0] # for 1 leg
     qpos0 = np.zeros(mjmodel.nq)
     # legqpos = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
     legqpos=mjmodel.jnt_qposadr[1:]
