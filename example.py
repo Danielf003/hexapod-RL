@@ -1,5 +1,6 @@
 import numpy as np
 import mujoco
+from Param_traj import param_traj
 from Traj_thetas import thetas_traj
 from mecanum_gen import generate_scene
 from mecanum_sim import SensorOutput, SimHandler
@@ -37,16 +38,29 @@ if __name__ == '__main__':
         dqdes = np.zeros(nj*1)
         ddqdes = np.zeros(nj*1)
 
+        T_upd = 4
+
+        # Выходы НС
+        T_f = 2
+        T_b = 0
+        L = 2
+        alfa = 0.26
+        # H = 1
+        delta_T = T_f
+        delta_thetas = np.array([0, 0.25,-0.2,0])
+
         if use_traj:
-            T_f = 2
-            T_b = 0
-            L = 2
-            alfa = 0.26
-            H = 1
-            delta_T = 0
-            qdes1, dqdes1, ddqdes1= thetas_traj(t, T_f, T_b, L, alfa, H, delta_T)
+
+            if t % T_upd == 0:
+                #  C_x = np.zeros((8, 1))
+                #  C_y = np.zeros((8, 1))
+                #  C_z = np.zeros((8, 1))
+                #  a = np.zeros((4, 5))
+                 C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
+                 
+            qdes1, dqdes1, ddqdes1= thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
             qdes1[2] = -qdes1[2]
-            qdes2, dqdes2, ddqdes2= thetas_traj(t, T_f, T_b, L, alfa, H, T_f)
+            qdes2, dqdes2, ddqdes2= thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
             qdes2[2] = -qdes2[2]
 
             q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
