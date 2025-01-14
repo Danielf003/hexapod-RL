@@ -132,6 +132,8 @@ def generate_scene():
     box.add_geom(size=[w/2,l/2,h/2], type=mujoco.mjtGeom.mjGEOM_BOX)
     box.add_site(name='box_center')
 
+    spec.add_sensor(name='rob_Y', type=mujoco.mjtSensor.mjSENS_FRAMEYAXIS, objname='box_center', objtype=mujoco.mjtObj.mjOBJ_SITE)
+
     dx = w/2 
     dy = .8*l/2
     dz = -h/2
