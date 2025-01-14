@@ -179,9 +179,94 @@ if __name__ == '__main__':
         # print(tau)
         # print(data.qpos[:4])
         return tau
+    
+    def ctrl_f_imp(t, model, data, holder: InputHolder, leg_virtual: LegRTB):
+        legdofs=model.jnt_dofadr[1:]
+        legqpos=model.jnt_qposadr[1:]
+
+        use_traj = 1
+        use_memory = 1
+        use_rtb_jacs = 0
+
+        nj = 4
+        nlegs = 6
+        # qdes = np.array([0, 1.22, 4.01, 5.76])
+        qdes = np.zeros(nj*1)
+        dqdes = np.zeros(nj*1)
+        ddqdes = np.zeros(nj*1)
+
+        # Выходы НС
+        T_f = 2
+        T_b = 0
+        L = 2
+        alfa = 0.26
+        # H = 1
+        delta_T = T_f
+        delta_thetas = np.array([0, 0.25,-0.2,0])
+        if use_memory:
+            holder.update([T_f, T_b, L, alfa, delta_thetas], t)
+            T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
+        else:
+            C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)        
+
+        if use_traj:
+            if use_rtb_jacs:
+                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes1[2] = -qdes1[2]
+                qdes2[2] = -qdes2[2]
+            else:
+                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
+                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
+                qdes1[2] = -qdes1[2]
+                qdes2[2] = -qdes2[2]
+
+            q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
+            qdes1 = qdes1 - np.array(q0)
+            qdes2 = qdes2 - np.array(q0)
+
+        # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
+        kp, kd = np.diag([50000,400000,300000,30000]*nlegs), np.diag([500,1000,500,500]*nlegs)
+        # u = np.zeros(model.nv)
+        ddqdes_full = np.zeros(model.nv)
+        e = np.zeros(nj*nlegs)
+        de = np.zeros(nj*nlegs)
+        print(f'time: {data.time}')
+        for i in range(nlegs):
+            if use_traj:
+                if i in (0, 2, 4):
+                        qdes = qdes1
+                        # qdes[2] = qdes1[2] - 2*np.pi
+                        # qdes[3] = qdes1[3] - 2*np.pi
+                        dqdes = dqdes1
+                        ddqdes = ddqdes1
+                        # print(f'i = {i}, qdes = {qdes}')
+                else:
+                        qdes = qdes2
+                        # qdes[2] = -qdes2[2] - 2*np.pi
+                        # qdes[3] = -qdes2[3] - 2*np.pi
+                        dqdes = dqdes2
+                        ddqdes = ddqdes2
+                        # print(f'i = {i}, qdes = {qdes}')
+
+            e[0+i*4:4+i*4] = data.qpos[legqpos][0+i*4:4+i*4]-qdes
+            de[0+i*4:4+i*4] = data.qvel[legdofs][0+i*4:4+i*4]-dqdes
+            
+            ddqdes_full[legdofs[0+i*4:4+i*4]] = ddqdes
+        
+        # u[legdofs] = np.array([1,1,1,1])
+        # print(model.jnt_dofadr)
+        Mddq = np.empty(model.nv)
+        mujoco.mj_mulM(model, data, Mddq, ddqdes_full)#+c)
+        tau = (Mddq + data.qfrc_bias)[legdofs] - kp@e - kd@de
+        # tau = tau[legdofs]
+
+        # print(tau)
+        # print(data.qpos[:4])
+        return tau
 
     # run MuJoCo simulation
-    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f, control_func_args=(memory,leg_virtual))
+    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f_imp, control_func_args=(memory,leg_virtual))
 
     # simout.plot(fin_dur, ['Скорость центра робота [м/с]'], [['v_x','v_y','v_z']])
 
