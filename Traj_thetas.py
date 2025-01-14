@@ -37,7 +37,8 @@ def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_f
     # Построение траектории
 
     if time <= T_f:  # Фаза опоры thet_S
-
+        p_s = np.array([time**2, time, 1, 0, 0, 0, 0, 0])
+        v_s = np.array([2*time, 1, 0, 0, 0, 0, 0, 0])
         if 0 <= time <= T_b:
             p_s = np.array([time**2, time, 1, 0, 0, 0, 0, 0])
             v_s = np.array([2*time, 1, 0, 0, 0, 0, 0, 0])
@@ -90,7 +91,8 @@ def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_f
 
         # Расчет thet_B
         time_2 = 2 * T_f - time
-
+        p_b = np.array([time_2**2, time_2, 1, 0, 0, 0, 0, 0])
+        v_b = np.array([2*time_2, 1, 0, 0, 0, 0, 0, 0])
         if 0 <= time_2 <= T_b:
             p_b = np.array([time_2**2, time_2, 1, 0, 0, 0, 0, 0])
             v_b = np.array([2*time_2, 1, 0, 0, 0, 0, 0, 0])

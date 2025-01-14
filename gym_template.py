@@ -5,11 +5,13 @@ import os
 
 import mujoco
 import numpy as np
+import roboticstoolbox as rtb
 
 from gymnasium import utils
 from gymnasium.envs.mujoco import MujocoEnv
 from gymnasium.spaces import Box
-
+from Param_traj import param_traj
+from Traj_thetas import thetas_traj
 
 DEFAULT_CAMERA_CONFIG = {
     "trackbodyid": 0,
@@ -18,6 +20,68 @@ DEFAULT_CAMERA_CONFIG = {
     "elevation": -20.0,
 }
 
+class InputHolder:
+    def __init__(self, timestep, input_func):
+        self.timestep = timestep
+        self.input_func = input_func
+    def update(self, action, current_time):
+        if current_time == 0:
+            self.Tupd = 2*action[0]
+            self.nsteps = int(self.Tupd/self.timestep)
+            self.cnt = 0
+            self.memory = self.input_func(action)
+        if self.cnt >= self.nsteps:
+            self.memory = self.input_func(action)
+            self.cnt = 0
+            self.Tupd = 2*action[0]
+            self.nsteps = int(self.Tupd/self.timestep)
+        else:
+            self.cnt += 1
+
+    def get_output(self):
+        # print(f'cnt: {self.cnt}')
+        return self.memory
+
+def func(action):
+    T_f, T_b, L, alpha = action[:4]
+    delta_thetas = np.asarray(action[4:]).reshape((4,))
+    # print(delta_thetas.shape)
+    C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alpha, delta_thetas)
+
+    return T_f, T_b, C_x, C_y, C_z, a
+
+class LegRTB:
+    def __init__(self):
+        l1 = 0.3  # m length of the first link
+        l2 = 0.848   # m length of the second link
+        l3 = 1.221   # m length of the third link
+        l4 = 0.6  # m length of the fourth link
+
+        E1 = rtb.ET.Rz()
+
+        E2 = rtb.ET.tx(l1)
+        E3 = rtb.ET.Ry(flip=True)
+
+        E4 = rtb.ET.tx(l2)
+        E5 = rtb.ET.Ry(flip=True)
+
+        E6 = rtb.ET.tx(l3)
+        E7 = rtb.ET.Ry(flip=True)
+
+        E8 = rtb.ET.tx(l4)
+
+        self.robot = E1 * E2 * E3 * E4 * E5 * E6 * E7 * E8
+        self.chosen_coords = (0,1,2,4)
+        self.q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
+    
+    def calc_Jinv(self, q):
+        J = self.robot.jacob0(q) #representation='eul' #jacob0 faster than analyt
+        return np.linalg.inv(J[self.chosen_coords,:])
+
+    def calc_Jdot(self, q, dq):
+        # Jdot = self.robot.jacob0_dot(q, dq) #representation='eul'
+        Jdot = np.tensordot(self.robot.hessian0(q), dq, (0, 0))
+        return Jdot[self.chosen_coords,:]
 
 class HopperEnv8(MujocoEnv, utils.EzPickle):
     r"""
@@ -167,16 +231,28 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
 
     def __init__(
         self,
-        xml_file: str =  os.path.join(os.getcwd(),"hexapod.xml"),
+        # xml_file: str =  os.path.join(os.getcwd(),"hexapod.xml"),
+        xml_file: str = r"D:\hexapod.xml",
         frame_skip: int = 4,
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
+
         forward_reward_weight: float = 1.0,
         ctrl_cost_weight: float = 1e-3,
         healthy_reward: float = 1.0,
+        stab_reward_weight_z = 1.0,
+        # stab_reward_weight_y = 1.0,
+
         terminate_when_unhealthy: bool = True,
+
         healthy_state_range: Tuple[float, float] = (-100.0, 100.0),
         healthy_z_range: Tuple[float, float] = (0.7, float("inf")),
-        healthy_angle_range: Tuple[float, float] = (-0.2, 0.2),
+
+        healthy_sin_z_range: Tuple[float, float] = (-0.25, 0.25),
+        # healthy_sin_y_range: Tuple[float, float] = (0.7, 1),
+
+        healthy_angle_range: Tuple[float, float] = (-100.0, 100.0),
+        
+
         reset_noise_scale: float = 5e-3,
         exclude_current_positions_from_observation: bool = True,
         **kwargs,
@@ -187,6 +263,7 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
             frame_skip,
             default_camera_config,
             forward_reward_weight,
+
             ctrl_cost_weight,
             healthy_reward,
             terminate_when_unhealthy,
@@ -206,6 +283,13 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         self._terminate_when_unhealthy = terminate_when_unhealthy
 
         self._healthy_state_range = healthy_state_range
+
+        self._healthy_sin_z_range = healthy_sin_z_range
+        # self._healthy_sin_y_range = healthy_sin_y_range
+
+        self._stab_reward_weight_z = stab_reward_weight_z
+        
+
         self._healthy_z_range = healthy_z_range
         self._healthy_angle_range = healthy_angle_range
 
@@ -235,19 +319,28 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         }
 
         obs_size = (
-            self.data.qpos.size
-            + self.data.qvel.size
-            - exclude_current_positions_from_observation
+            self.data.qpos[:6].size
+            + self.data.qpos[3:7].size
+            # + self.data.qvel.size
+            # - exclude_current_positions_from_observation
         )
         self.observation_space = Box(
             low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float64
         )
 
+        self.action_space = Box(
+            low=-np.inf, high=np.inf, shape=(8,), dtype=np.float64
+        )
+        # self.memory = InputHolder(MujocoEnv.dt, func)
+        self.memory = InputHolder(self.model.opt.timestep, func)
+        
+        self.leg_virtual = LegRTB()
+
         self.observation_structure = {
-            "skipped_qpos": 1 * exclude_current_positions_from_observation,
-            "qpos": self.data.qpos.size
-            - 1 * exclude_current_positions_from_observation,
-            "qvel": self.data.qvel.size,
+            # "skipped_qpos": 1 * exclude_current_positions_from_observation,
+            # "qpos": self.data.qpos.size
+            # - 1 * exclude_current_positions_from_observation,
+            # "qvel": self.data.qvel.size,
         }
 
     @property
@@ -263,27 +356,40 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         is_healthy = True
         # z, angle = self.data.qpos[1:3]
         # state = self.state_vector()[2:]
+        c_z = self.data.sensordata[2]
 
         # min_state, max_state = self._healthy_state_range
         # min_z, max_z = self._healthy_z_range
         # min_angle, max_angle = self._healthy_angle_range
 
+        min_sin_z, max_sin_z = self._healthy_sin_z_range
+        # min_sin_y, max_sin_y = self._healthy_sin_y_range
+
         # healthy_state = np.all(np.logical_and(min_state < state, state < max_state))
         # healthy_z = min_z < z < max_z
-        # healthy_angle = min_angle < angle < max_angle
+        healthy_angle_z = min_sin_z < c_z < max_sin_z
+        # healthy_angle_y = min_sin_y < c_y < max_sin_y
 
-        # is_healthy = all((healthy_state, healthy_z, healthy_angle))
+        is_healthy = (healthy_angle_z)
 
         return is_healthy
 
     def _get_obs(self):
-        position = self.data.qpos.flatten()
-        velocity = np.clip(self.data.qvel.flatten(), -10, 10)
+        # position = self.data.qpos.flatten()
+        # velocity = np.clip(self.data.qvel.flatten(), -10, 10)
 
-        if self._exclude_current_positions_from_observation:
-            position = position[1:]
+        V = self.data.qvel[:3].flatten()
+        W = self.data.qvel[3:6].flatten()
+        alphas = self.data.qpos[3:7].flatten()
+        # touch = self.data.sensordata[]
+        
+        # print(f'V = {V}; W = {W}; alphas = {alphas}')
 
-        observation = np.concatenate((position, velocity)).ravel()
+        # if self._exclude_current_positions_from_observation:
+            # position = position[1:]
+
+        observation = np.concatenate((V, W, alphas)).ravel()
+        # print(f'observation_size = {observation.size}')
         return observation
 
     def ctrl_q2tau(self, qdes, dqdes, ddqdes):
@@ -313,7 +419,97 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         # print(tau)
         # print(data.qpos[:4])
         return tau
+    
 
+    # define control function
+    def ctrl_f(self, action, holder: InputHolder, leg_virtual: LegRTB):
+        # action - T_f, T_b, L, alfa, delta_thetas
+        # print(f'time: {self.data.time}')
+        t = self.data.time
+
+        legdofs= self.model.jnt_dofadr[1:]
+        legqpos=self.model.jnt_qposadr[1:]
+
+        use_traj = 1
+        use_memory = 1
+        use_rtb_jacs = 0
+
+        nj = 4
+        nlegs = 6
+        # qdes = np.array([0, 1.22, 4.01, 5.76])
+        qdes = np.zeros(nj*1)
+        dqdes = np.zeros(nj*1)
+        ddqdes = np.zeros(nj*1)
+
+        # Выходы НС
+        # T_f = 2
+        # T_b = 0
+        # L = 2
+        # alfa = 0.26
+        # H = 1
+        # delta_T = T_f
+        # delta_thetas = np.array([0, 0.25,-0.2,0])
+        if use_memory:
+            holder.update(action, t)
+            T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
+        else:
+            C_x, C_y, C_z, a = param_traj(action)        
+
+        if use_traj:
+            if use_rtb_jacs:
+                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes1[2] = -qdes1[2]
+                qdes2[2] = -qdes2[2]
+            else:
+                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
+                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a)
+                qdes1[2] = -qdes1[2]
+                qdes2[2] = -qdes2[2]
+
+            q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
+            qdes1 = qdes1 - np.array(q0)
+            qdes2 = qdes2 - np.array(q0)
+
+        # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
+        kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
+        u = np.zeros( self.model.nv)
+        e = np.zeros(nj*nlegs)
+        de = np.zeros(nj*nlegs)
+        # print(f'time: { model.time}')
+        for i in range(nlegs):
+            if use_traj:
+                if i in (0, 2, 4):
+                        qdes = qdes1
+                        # qdes[2] = qdes1[2] - 2*np.pi
+                        # qdes[3] = qdes1[3] - 2*np.pi
+                        dqdes = dqdes1
+                        ddqdes = ddqdes1
+                        # print(f'i = {i}, qdes = {qdes}')
+                else:
+                        qdes = qdes2
+                        # qdes[2] = -qdes2[2] - 2*np.pi
+                        # qdes[3] = -qdes2[3] - 2*np.pi
+                        dqdes = dqdes2
+                        ddqdes = ddqdes2
+                        # print(f'i = {i}, qdes = {qdes}')
+
+            e[0+i*4:4+i*4] =  self.data.qpos[legqpos][0+i*4:4+i*4]-qdes
+            de[0+i*4:4+i*4] =  self.data.qvel[legdofs][0+i*4:4+i*4]-dqdes
+            
+            u[legdofs[0+i*4:4+i*4]] = ddqdes - kp@e[0+i*4:4+i*4] - kd@de[0+i*4:4+i*4]
+        
+        # u[legdofs] = np.array([1,1,1,1])
+        # print(model.jnt_dofadr)
+        Mu = np.empty( self.model.nv)
+        mujoco.mj_mulM( self.model,  self.data, Mu, u)#+c)
+        tau = Mu +  self.data.qfrc_bias
+        tau = tau[legdofs]
+
+        # print(tau)
+        # print(data.qpos[:4])
+        return tau
+    
     def action2control(self, inp):
         # self.data
         # self.model
@@ -324,19 +520,32 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         return ctrl
 
     def step(self, action):
-        x_position_before = self.data.qpos[0]
-        # ctrl = self.action2control(action)
-        self.do_simulation(action, self.frame_skip)
-        x_position_after = self.data.qpos[0]
-        x_velocity = (x_position_after - x_position_before) / self.dt
+        # x_position_before = self.data.qpos[0]
+        # print(f'time: {self.data.time}')
+        y_position_before = self.data.qpos[1]
+
+        ctrl = self.ctrl_f(action, self.memory, self.leg_virtual)
+
+        self.do_simulation(ctrl, self.frame_skip)
+        # x_position_after = self.data.qpos[0]
+
+        y_position_after = self.data.qpos[1]
+        # x_velocity = (x_position_after - x_position_before) / self.dt
+
+        moving_along_axes_y = (y_position_after - y_position_before)
+        # alpha = self.data.sensordata
+        
 
         observation = self._get_obs()
-        reward, reward_info = self._get_rew(x_velocity, action)
+        reward, reward_info = self._get_rew(moving_along_axes_y)
         terminated = (not self.is_healthy) and self._terminate_when_unhealthy
         info = {
-            "x_position": x_position_after,
-            "z_distance_from_origin": self.data.qpos[1] - self.init_qpos[1],
-            "x_velocity": x_velocity,
+            # "x_position": x_position_after,
+            "moving_along_axes_y": moving_along_axes_y,
+            # "sin_x":,
+            # "sin_y":,
+            # "z_distance_from_origin": self.data.qpos[1] - self.init_qpos[1],
+            # "x_velocity": x_velocity,
             **reward_info,
         }
 
@@ -345,19 +554,25 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return observation, reward, terminated, False, info
 
-    def _get_rew(self, x_velocity: float, action):
-        forward_reward = self._forward_reward_weight * x_velocity
+    def _get_rew(self, moving_along_axes_y):
+
+        forward_reward = self._forward_reward_weight * moving_along_axes_y
+        s_z = self.data.sensordata[2]
+
+        stab_reward = - self._stab_reward_weight_z * abs(s_z) 
+
         healthy_reward = self.healthy_reward
-        rewards = forward_reward + healthy_reward
+        reward = forward_reward + healthy_reward + stab_reward
+        # reward = forward_reward - stab_reward + healthy_reward
 
-        ctrl_cost = self.control_cost(action)
-        costs = ctrl_cost
+        # ctrl_cost = self.control_cost(action)
+        # costs = ctrl_cost
 
-        reward = rewards - costs
+        # reward = rewards - costs
 
         reward_info = {
             "reward_forward": forward_reward,
-            "reward_ctrl": -ctrl_cost,
+            # "reward_ctrl": -ctrl_cost,
             "reward_survive": healthy_reward,
         }
 
