@@ -1,5 +1,7 @@
 import numpy as np
 import mujoco
+import roboticstoolbox as rtb
+
 from Param_traj import param_traj
 from Traj_thetas import thetas_traj
 from mecanum_gen import generate_scene
@@ -35,6 +37,47 @@ def func(action):
 
     return T_f, T_b, C_x, C_y, C_z, a
 
+class LegRTB:
+    def __init__(self):
+        l1 = 0.3  # m length of the first link
+        l2 = 0.848   # m length of the second link
+        l3 = 1.221   # m length of the third link
+        l4 = 0.6  # m length of the fourth link
+
+        E1 = rtb.ET.Rz()
+
+        E2 = rtb.ET.tx(l1)
+        E3 = rtb.ET.Ry(flip=True)
+
+        E4 = rtb.ET.tx(l2)
+        E5 = rtb.ET.Ry(flip=True)
+
+        E6 = rtb.ET.tx(l3)
+        E7 = rtb.ET.Ry(flip=True)
+
+        E8 = rtb.ET.tx(l4)
+
+        self.robot = E1 * E2 * E3 * E4 * E5 * E6 * E7 * E8
+        self.chosen_coords = (0,1,2,4)
+        self.q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
+    
+    def calc_Jinv(self, q):
+        J = self.robot.jacob0(q) #representation='eul' #jacob0 faster than analyt
+        return np.linalg.inv(J[self.chosen_coords,:])
+
+    def calc_Jdot(self, q, dq):
+        # Jdot = self.robot.jacob0_dot(q, dq) #representation='eul'
+        Jdot = np.tensordot(self.robot.hessian0(q), dq, (0, 0))
+        return Jdot[self.chosen_coords,:]
+    
+    # def fk(self, q):
+    #     T = self.robot.eval(q)
+    #     return T[:3,-1]
+    
+    # def ik(self, x, y, z):
+    #     Tdes = np.array([[1,0,0, x],[0,1,0, y],[0,0,1, z],[0,0,0, 1]])
+    #     return self.robot.ik_NR(Tdes,pinv=False,q0=self.q0)[0] #q0=self.q0
+
 if __name__ == '__main__':
     spec = generate_scene()
     # spec.add_sensor(name='vel_c', type=mujoco.mjtSensor.mjSENS_VELOCIMETER, objname='box_center', objtype=mujoco.mjtObj.mjOBJ_SITE)
@@ -51,14 +94,16 @@ if __name__ == '__main__':
     # prepare sim params
     simh = SimHandler(model_xml, None, simlength=simtime, simout=simout)  
     memory = InputHolder(simh.timestep, func)
+    leg_virtual = LegRTB()
     
     # define control function
-    def ctrl_f(t, model, data, holder: InputHolder):
+    def ctrl_f(t, model, data, holder: InputHolder, leg_virtual: LegRTB):
         legdofs=model.jnt_dofadr[1:]
         legqpos=model.jnt_qposadr[1:]
 
         use_traj = 1
         use_memory = 1
+        use_rtb_jacs = 0
 
         nj = 4
         nlegs = 6
@@ -82,10 +127,16 @@ if __name__ == '__main__':
             C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)        
 
         if use_traj:
-            qdes1, dqdes1, ddqdes1= thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
-            qdes1[2] = -qdes1[2]
-            qdes2, dqdes2, ddqdes2= thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
-            qdes2[2] = -qdes2[2]
+            if use_rtb_jacs:
+                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes1[2] = -qdes1[2]
+                qdes2[2] = -qdes2[2]
+            else:
+                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
+                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
+                qdes1[2] = -qdes1[2]
+                qdes2[2] = -qdes2[2]
 
             q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
             qdes1 = qdes1 - np.array(q0)
@@ -130,7 +181,7 @@ if __name__ == '__main__':
         return tau
 
     # run MuJoCo simulation
-    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f, control_func_args=(memory,))
+    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f, control_func_args=(memory,leg_virtual))
 
     # simout.plot(fin_dur, ['Скорость центра робота [м/с]'], [['v_x','v_y','v_z']])
 
