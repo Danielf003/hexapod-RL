@@ -50,7 +50,23 @@ def generate_scene():
 
     spec.worldbody.add_light(name="//unnamed_light_0", directional=True, castshadow=False, pos=[0, 0, 3], dir=[0, 0.8, -1])
 
-    spec.worldbody.add_geom(name="floor", type=mujoco.mjtGeom.mjGEOM_PLANE, condim=1, size=[0, 0, 0.125], material="groundplane")
+    spec.worldbody.add_geom(name="floor", type=mujoco.mjtGeom.mjGEOM_PLANE, size=[0, 0, 0.125], material="groundplane",
+                            # friction = [0.01, 0.005, 0.0003]
+                            # condim=6
+                            )
+
+    xr = np.arange(-20,20,.5) #1
+    yr = np.arange(-20,20,.5) #1
+    # hr = np.random.randint(0,10,5)
+    np.random.seed(0)
+    hr = np.random.rand(len(xr),len(yr))*.5
+    eulr = np.random.randint(0,2,(len(xr),len(yr),3))
+    zi = 0
+    li, wi = .2, .2
+    for i,xi in enumerate(xr):
+        for j,yi in enumerate(yr):
+            spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[li, wi, li], pos=[xi,yi,zi], euler=np.dot(eulr[i,j,:],45))
+            # spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[li, wi, hr[i,j]], pos=[xi,yi,zi])
 
     # mesh_filenames = ['board1.stl', 'board2.stl', 'box1.stl', 'box2.stl', 'chair1.stl', 
     #              'chair2.stl', 'chair3.stl', 'chair4.stl', 'filter.stl', 'puff.stl', 
@@ -82,15 +98,10 @@ def generate_scene():
         initial_q_glob = [0, initial_q[1], initial_q[1]+initial_q[2], initial_q[1]+initial_q[2]+initial_q[3]]
         RyT = lambda ang: np.array([[np.cos(ang),0,-np.sin(ang)],[0,0,0],[np.sin(ang),0,np.cos(ang)]])
         # ends = ([.3,0,0],[.6,0,.6],[.7,0,-1.],[0,0,-.6])
-        # l1,l2,l3,l4 = .3, np.linalg.norm(np.array([.6,0,.6])), np.linalg.norm(np.array([.7,0,-1.])), np.linalg.norm(np.array([0,0,-.6]))
         l1,l2,l3,l4 = .3, np.linalg.norm(np.array([.6,0,.6])), np.linalg.norm(np.array([.7,0,-1.])), np.linalg.norm(np.array([0,0,-.6]))
-        ends = ([l1,0,0],[l2,0,0],[l3,0,0],[l4,0,0])
-        ends = tuple(RyT(ang) @ np.asarray(en) for en, ang in zip(ends,initial_q_glob))
-
-        # ends = tuple([.1,0,0] for i in range(4)) #local for each link
+        ends = ([l1,0,0],[l2,0,0],[l3,0,0],[l4,0,0]) #local for each link
+        ends = tuple(RyT(ang) @ np.asarray(en) for en, ang in zip(ends,initial_q_glob)) #local for each link
         starts = (lpos, *ends[:-1])
-
-        # cfg = {'damping':}
 
         parent = lspec.worldbody
         link_bodies = []
@@ -102,7 +113,8 @@ def generate_scene():
                                         )
             link.add_joint(name=f'{link_name}{i+1}', axis=jaxis[i], damping=dampings[i])
             link.add_geom(size=[link_r,0,0], fromto=[0,0,0,*ends[i]],
-                        type=mujoco.mjtGeom.mjGEOM_CAPSULE, group=1
+                        type=mujoco.mjtGeom.mjGEOM_CAPSULE, group=1,
+                        # friction = [2, 0.005, 0.0003], condim=6
                         #  contype=1, conaffinity=0,
                         #  rgba=[0.2, 0.2, 0.2, 0.5]
                         )
@@ -112,17 +124,15 @@ def generate_scene():
         return link_bodies[0], lspec
 
     l, w, h = 4., 2., .5
-    wR = 0.04
     n_legs = 6
-    hub_thickness = wR
-    n_roll = 8
-    box_pos = [0,0,1+h/2]
+    # box_pos = [0,0,1+h/2]
+    box_pos = [0,0,1.1+h/2] # для неровной поверхности нужно спавнить выше
     box = spec.worldbody.add_body(name="box", pos=box_pos)
     box.add_freejoint()
     box.add_geom(size=[w/2,l/2,h/2], type=mujoco.mjtGeom.mjGEOM_BOX)
     box.add_site(name='box_center')
 
-    dx = w/2 + hub_thickness/2
+    dx = w/2 
     dy = .8*l/2
     dz = -h/2
 
@@ -134,21 +144,11 @@ def generate_scene():
     site5 = box.add_site(pos=[dx,-dy,dz], euler=[0,0,0-leg_rot]) # rear right
     site6 = box.add_site(pos=[dx,0,dz], euler=[0,0,0]) # center right
     sites = [site1,site2,site3,site4,site5,site6]
-    
-    # site0 = spec.worldbody.add_site(pos=[0,0,0.5])
-    # site01 = spec.worldbody.add_site(pos=[0.5,0,0.5])
-    
-    hub_name = 'hub'
 
     leg_body1, _ = create_leg()
     
     for i in range(n_legs):
         leg1 = sites[i].attach(leg_body1, f'leg{i+1}-', '')
-    # leg2 = site2.attach(leg_body1, 'leg2-', '')
-    # leg3 = site3.attach(leg_body1, 'leg3-', '')
-    # leg4 = site4.attach(leg_body1, 'leg4-', '')
-    # leg5 = site5.attach(leg_body1, 'leg5-', '')
-    # leg6 = site6.attach(leg_body1, 'leg6-', '')
 
     # spec.compiler.inertiagrouprange = [0,1]
 
