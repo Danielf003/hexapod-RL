@@ -91,6 +91,7 @@ def generate_scene():
 
         link_name='l'
         link_r = 0.08
+        site_radial_margin = .02
         jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
 
@@ -120,6 +121,8 @@ def generate_scene():
                         )
             parent = link
             link_bodies.append(link)
+
+        link.add_site(name='tip', pos=ends[-1],size=[link_r+site_radial_margin,0,0])
 
         return link_bodies[0], lspec
 
@@ -151,6 +154,7 @@ def generate_scene():
     
     for i in range(n_legs):
         leg1 = sites[i].attach(leg_body1, f'leg{i+1}-', '')
+        spec.add_sensor(name=f'touch{i+1}', type=mujoco.mjtSensor.mjSENS_TOUCH, objname=f'leg{i+1}-tip', objtype=mujoco.mjtObj.mjOBJ_SITE)
 
     # spec.compiler.inertiagrouprange = [0,1]
 
