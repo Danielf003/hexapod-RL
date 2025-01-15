@@ -26,7 +26,7 @@ def disable_parts_contact(spec, parts_lists):
 def generate_scene():
     spec = mujoco.MjSpec()
 
-    # spec.option.timestep = 0.05
+    spec.option.timestep = 0.002
     getattr(spec.visual, 'global').azimuth = -135
     getattr(spec.visual, 'global').elevation = -20
     spec.visual.scale.jointlength = 3.6
@@ -174,11 +174,11 @@ def generate_scene():
     # Collision is enabled only for pairs world-rollers(spheres) and world-chassie(box). 
     # Hub and visual wheel are disabled
 
-    input_saturation = [-.4,.4] # Nm
+    input_saturation = [-1e4,1e4] # Nm
     for i in range(n_legs):
         for j in range(4):
             spec.add_actuator(name=f'leg{i+1}-l{j+1}', target=f'leg{i+1}-l{j+1}', trntype=mujoco.mjtTrn.mjTRN_JOINT,
-                            #   ctrllimited=True, ctrlrange=input_saturation
+                              ctrllimited=True, ctrlrange=input_saturation
                               )
     
     mjmodel = spec.compile()
