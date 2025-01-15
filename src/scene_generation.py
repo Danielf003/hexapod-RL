@@ -95,7 +95,7 @@ def generate_scene():
         jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
 
-        jlims = ([-90, 90],[-120, 45],[-30, 90],[-90, 30])
+        jlims = ([-90, 90],[-120, 45],[-30, 90],[-90+360, 30+360])
         # jlims = tuple([lim[0]*np.pi/180, lim[1]*np.pi/180] for lim in jlims) # to radians
         # print(jlims)
 
