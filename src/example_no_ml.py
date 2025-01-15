@@ -2,10 +2,10 @@ import numpy as np
 import mujoco
 import roboticstoolbox as rtb
 
-from Param_traj import param_traj
-from Traj_thetas import thetas_traj
-from mecanum_gen import generate_scene
-from mecanum_sim import SensorOutput, SimHandler
+from traj_calculation import param_traj
+from traj_calculation import thetas_traj
+from scene_generation import generate_scene
+from simulation import SensorOutput, SimHandler
 
 class InputHolder:
     def __init__(self, timestep, input_func):

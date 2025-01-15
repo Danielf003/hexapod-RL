@@ -1,5 +1,4 @@
 import numpy as np
-from IK import IK
 
 def calc_Jinv(s1,s2,s3,s4,c1,c2,c3,c4,l1,l2,l3,l4):
     J_inv = np.array([
@@ -19,9 +18,119 @@ def calc_Jdot(s1,s2,s3,s4,c1,c2,c3,c4,l1,l2,l3,l4,dq1,dq2,dq3,dq4):
             ])
     return dJ_dt
 
-def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_func=None):
+def fk(q1, q2, q3, q4, L1, L2, L3, L4):
+    c2 = np.cos(q2)
+    c23 = np.cos(q2+q3)
+    c234 = np.cos(q2+q3+q4)
+    Lc = (L1 + L2*c2 + L3*c23 + L4*c234)
+    x = np.cos(q1)*Lc
+    y = np.sin(q1)*Lc
+    z = L2*np.sin(q2) + L3*np.sin(q2+q3) + L4*np.sin(q2+q3+q4)
 
-    
+    pos = np.array([x, y, z])
+
+    return pos
+
+def ik(x, y, z, l1, l2, l3, l4):
+    # Решение обратной задачи кинематики
+
+    import numpy as np
+
+    z = z + l4
+    if x > 0:
+        theta_1 = np.arctan(y/x)
+    elif x == 0:
+        theta_1 = np.pi/2
+    elif x < 0:
+        theta_1 = np.pi - np.arctan(y/-x)
+
+    d = np.sqrt((np.sqrt(x**2 + y**2) - l1)**2 + z**2)
+    cos_b = (d**2 + l2**2 - l3**2)/(2*l2*d)
+    cos_gamma = (l2**2 + l3**2 - d**2)/(2*l2*l3)
+    sin_a = -z/d
+
+    theta_2 = np.arccos(cos_b) - np.arcsin(sin_a)
+    theta_3 = np.pi - np.arccos(cos_gamma)
+    theta_4 = 2*np.pi - (np.pi - (np.pi/2 - theta_2) - (2*np.pi - (2*np.pi - theta_3)))
+
+    return np.array([theta_1, theta_2, theta_3, theta_4])
+
+def param_traj(T_f, T_b, L, alfa, delta_thetas):
+    #-----------------------------------------------------------
+
+    # T_b - время движения по параболе в фазе опоры (если T_b = 0, то энд-эффектор движется просто по прямой)
+
+    step_length = L
+    rotation_angle = alfa
+
+    # Предварительные расчеты для фазы опоры и 1/2 фазы перемещения
+    A = np.array([
+        [0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, T_f**2, T_f, 1],
+        [T_b**2, T_b, 1, -T_b, -1, 0, 0, 0],
+        [1/2*T_b, 1, 0, -1, 0, 0, 0, 0],
+        [0, 0, 0, -(T_f-T_b), -1, (T_f-T_b)**2, (T_f-T_b), 1],
+        [0, 0, 0, -1, 0, 1/2*(T_f-T_b), 1, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1/2*T_f, 1, 0]
+    ])
+
+    B_x = np.array([1.5 + step_length/2 * np.sin(rotation_angle), 1.5 - step_length/2 * np.sin(rotation_angle), 0, 0, 0, 0, 0, 0])
+
+    y_cor = step_length/2 * np.cos(rotation_angle)
+    B_y = np.array([-y_cor, y_cor, 0, 0, 0, 0, 0, 0])
+
+    # координата z отсчитывается от СК, связанной с корпусом (0,56 - высота подъёма корпуса над землёй)
+    # Думаю, можно добавить этот параметр в перечень входных параметров функции (добавить этот выход НС)
+    B_z = np.array([-0.56, -0.56, 0, 0, 0, 0, 0, 0])
+
+    # Решаем систему уравнений
+    C_x = np.linalg.lstsq(A, B_x, rcond=None)[0]
+    C_y = np.linalg.lstsq(A, B_y, rcond=None)[0]
+    C_z = np.linalg.lstsq(A, B_z, rcond=None)[0]
+
+    #-----------------------------------------------------------
+
+    # Предварительные расчеты для 1/2 фазы перемещения
+
+    # Решение обратной задачи кинематики
+    # # Входные параметры
+    # x = 1.5
+    # y = 0
+    # z = H
+
+    # # # Решение ОЗК
+
+    # th = IK(x, y, z, l1, l2, l3, l4)
+    # th[2] = -th[2]
+    # th = np.array([0, 0.25,-0.2,0])
+
+    T = np.array([
+        [T_f**4, T_f**3, T_f**2, T_f, 1],
+        [(3/2*T_f)**4, (3/2*T_f)**3, (3/2*T_f)**2, (3/2*T_f), 1],
+        [(2*T_f)**4, (2*T_f)**3, (2*T_f)**2, (2*T_f), 1],
+        [4*T_f**3, 3*T_f**2, 2*T_f, 1, 0],
+        [4*(2*T_f)**3, 3*(2*T_f)**2, 2*(2*T_f), 1, 0]
+    ])
+
+    a = np.zeros((4, 5))  # параметры уравнений для 4 обобщенных координат
+    # Уравнения вида: (q = a_4*t^4 + a_3*t^3 + a_2*t^2 + a_1*t + a_0)
+    for idx in range(4):
+        delta_theta = delta_thetas[idx]
+        D_theta = np.array([0, delta_theta, 0, 0, 0])
+        a[idx, :] = np.linalg.inv(T).dot(D_theta)
+
+    #-----------------------------------------------------------
+
+    return C_x, C_y, C_z, a
+
+    # T_f, T_b, L, alfa, delta_thetas =  50, 2, 1, 0.44, [0.17, 0.25, 0, 0.1]
+    # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
+    # t=10
+    # traject = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_func=None)
+    # print(traject)
+
+def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_func=None):
     #-----------------------------------------------------------
 
     # T_b - время движения по параболе в фазе опоры (если T_b = 0, то энд-эффектор движется просто по прямой)
@@ -65,7 +174,7 @@ def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_f
 
         # Решение обратной задачи кинематики
 
-        q = IK(p_x_s, p_y_s, p_z_s, l1, l2, l3, l4)
+        q = ik(p_x_s, p_y_s, p_z_s, l1, l2, l3, l4)
 
         s1, s2, s3, s4 = np.sin(q)
         c1, c2, c3, c4 = np.cos(q)
@@ -121,7 +230,7 @@ def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_f
 
         # Решение обратной задачи кинематики
 
-        q = IK(p_x_b, p_y_b, p_z_b, l1, l2, l3, l4)
+        q = ik(p_x_b, p_y_b, p_z_b, l1, l2, l3, l4)
         q_b = q
 
         s1, s2, s3, s4 = np.sin(q)

@@ -1,4 +1,4 @@
-__credits__ = ["Kallinteris-Andreas"]
+# __credits__ = ["Kallinteris-Andreas"]
 
 from typing import Dict, Tuple, Union
 import os
@@ -10,8 +10,8 @@ import roboticstoolbox as rtb
 from gymnasium import utils
 from gymnasium.envs.mujoco import MujocoEnv
 from gymnasium.spaces import Box
-from Param_traj import param_traj
-from Traj_thetas import thetas_traj
+from traj_calculation import param_traj
+from traj_calculation import thetas_traj
 
 DEFAULT_CAMERA_CONFIG = {
     "trackbodyid": 0,
@@ -83,7 +83,7 @@ class LegRTB:
         Jdot = np.tensordot(self.robot.hessian0(q), dq, (0, 0))
         return Jdot[self.chosen_coords,:]
 
-class HopperEnv8(MujocoEnv, utils.EzPickle):
+class HexapodEnv(MujocoEnv, utils.EzPickle):
     r"""
     ## Description
     This environment is based on the work of Erez, Tassa, and Todorov in ["Infinite Horizon Model Predictive Control for Nonlinear Periodic Tasks"](http://www.roboticsproceedings.org/rss07/p10.pdf).
@@ -231,8 +231,8 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
 
     def __init__(
         self,
-        # xml_file: str =  os.path.join(os.getcwd(),"hexapod.xml"),
-        xml_file: str = r"D:\hexapod.xml",
+        xml_file: str =  os.path.join(os.getcwd(),"hexapod.xml"),
+        # xml_file: str = r"D:\hexapod.xml",
         frame_skip: int = 1,
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
 
