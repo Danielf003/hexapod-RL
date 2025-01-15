@@ -174,7 +174,7 @@ def generate_scene():
     # Collision is enabled only for pairs world-rollers(spheres) and world-chassie(box). 
     # Hub and visual wheel are disabled
 
-    input_saturation = [-1e4,1e4] # Nm
+    input_saturation = [-1e4-500,1e4+500] # Nm
     for i in range(n_legs):
         for j in range(4):
             spec.add_actuator(name=f'leg{i+1}-l{j+1}', target=f'leg{i+1}-l{j+1}', trntype=mujoco.mjtTrn.mjTRN_JOINT,

@@ -33,9 +33,11 @@ def func(action):
     T_f, T_b, L, alpha = action[:4]
     delta_thetas = np.asarray(action[4:]).reshape((4,))
     print(delta_thetas.shape)
-    C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alpha, delta_thetas)
+    # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alpha, delta_thetas)
+    C_x_left, C_y_left, C_z_left, a_left = param_traj(True, T_f, T_b, L, alpha, delta_thetas)
+    C_x_right, C_y_right, C_z_right, a_right = param_traj(False, T_f, T_b, L, alpha, delta_thetas)
 
-    return T_f, T_b, C_x, C_y, C_z, a
+    return T_f, T_b, C_x_left, C_y_left, C_z_left, a_left, C_x_right, C_y_right, C_z_right, a_right
 
 class LegRTB:
     def __init__(self):
@@ -103,8 +105,10 @@ if __name__ == '__main__':
 
         use_traj = 1
         use_memory = 1
-        use_rtb_jacs = 0
+        use_rtb_jacs = 1
 
+        y_position = data.qpos[1]
+        print(f'y_position = {y_position}')
         nj = 4
         nlegs = 6
         # qdes = np.array([0, 1.22, 4.01, 5.76])
@@ -113,34 +117,55 @@ if __name__ == '__main__':
         ddqdes = np.zeros(nj*1)
 
         # Выходы НС
-        T_f = 2
+        T_f = 7
         T_b = 0
-        L = 2
-        alfa = 0.26
+        L = 1
+        alfa = 0
         # H = 1
         delta_T = T_f
         delta_thetas = np.array([0, 0.25,-0.2,0])
+        C_x_left, C_y_left, C_z_left, a_left = param_traj(True, T_f, T_b, L, alfa, delta_thetas)
+        C_x_right, C_y_right, C_z_right, a_right = param_traj(False, T_f, T_b, L, alfa, delta_thetas)
+        # print(f'alfa = {alfa}')
         if use_memory:
             holder.update([T_f, T_b, L, alfa, delta_thetas], t)
-            T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
+            T_f, T_b, C_x_left, C_y_left, C_z_left, a_left, C_x_right, C_y_right, C_z_right, a_right = holder.get_output()
+
         else:
-            C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)        
+            # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)   
+
+            C_x_left, C_y_left, C_z_left, a_left = param_traj(True, T_f, T_b, L, alfa, delta_thetas)
+            C_x_right, C_y_right, C_z_right, a_right = param_traj(False, T_f, T_b, L, alfa, delta_thetas)
+
 
         if use_traj:
             if use_rtb_jacs:
-                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
-                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
-                qdes1[2] = -qdes1[2]
-                qdes2[2] = -qdes2[2]
+                qdes1_left, dqdes1_left, ddqdes1_left = thetas_traj(t, T_f, T_b, 0, C_x_left, C_y_left, C_z_left, a_left, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes1_right, dqdes1_right, ddqdes1_right = thetas_traj(t, T_f, T_b, 0, C_x_right, C_y_right, C_z_right, a_right, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes2_left, dqdes2_left, ddqdes2_left = thetas_traj(t, T_f, T_b, delta_T, C_x_left, C_y_left, C_z_left, a_left, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                qdes2_right, dqdes2_right, ddqdes2_right = thetas_traj(t, T_f, T_b, delta_T, C_x_right, C_y_right, C_z_right, a_right, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+                
+                qdes1_left[2] = -qdes1_left[2]
+                qdes1_right[2] = -qdes1_right[2]
+                qdes2_left[2] = -qdes2_left[2]
+                qdes2_right[2] = -qdes2_right[2]
             else:
-                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
-                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
-                qdes1[2] = -qdes1[2]
-                qdes2[2] = -qdes2[2]
+                # qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
+                # qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
+                qdes1_left, dqdes1_left, ddqdes1_left = thetas_traj(t, T_f, T_b, 0, C_x_left, C_y_left, C_z_left, a_left)
+                qdes1_right, dqdes1_right, ddqdes1_right = thetas_traj(t, T_f, T_b, 0, C_x_right, C_y_right, C_z_right, a_right)
+                qdes2_left, dqdes2_left, ddqdes2_left = thetas_traj(t, T_f, T_b, delta_T, C_x_left, C_y_left, C_z_left, a_left)
+                qdes2_right, dqdes2_right, ddqdes2_right = thetas_traj(t, T_f, T_b, delta_T, C_x_right, C_y_right, C_z_right, a_right)
+                qdes1_left[2] = -qdes1_left[2]
+                qdes1_right[2] = -qdes1_right[2]
+                qdes2_left[2] = -qdes2_left[2]
+                qdes2_right[2] = -qdes2_right[2]
 
             q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
-            qdes1 = qdes1 - np.array(q0)
-            qdes2 = qdes2 - np.array(q0)
+            qdes1_left = qdes1_left - np.array(q0)
+            qdes1_right = qdes1_right - np.array(q0)
+            qdes2_left = qdes2_left - np.array(q0)
+            qdes2_right = qdes2_right - np.array(q0)
 
         # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
         kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
@@ -150,22 +175,33 @@ if __name__ == '__main__':
         print(f'time: {data.time}')
         for i in range(nlegs):
             if use_traj:
-                if i in (0, 2, 4):
-                        qdes = qdes1
+                # if i in (0, 2, 4):
+                if i in (0, 4):
+                        qdes = qdes1_right
                         # qdes[2] = qdes1[2] - 2*np.pi
                         # qdes[3] = qdes1[3] - 2*np.pi
-                        dqdes = dqdes1
-                        ddqdes = ddqdes1
+                        dqdes = dqdes1_right
+                        ddqdes = ddqdes1_right
                         # print(f'i = {i}, qdes = {qdes}')
+                elif i == 2:
+                        qdes = qdes1_left
+                        dqdes = dqdes1_left
+                        ddqdes = ddqdes1_left
+                elif i in (1, 3):
+                        qdes = qdes2_left
+                        dqdes = dqdes2_left
+                        ddqdes = ddqdes2_left
+                     
                 else:
-                        qdes = qdes2
+                        qdes = qdes2_right
                         # qdes[2] = -qdes2[2] - 2*np.pi
                         # qdes[3] = -qdes2[3] - 2*np.pi
-                        dqdes = dqdes2
-                        ddqdes = ddqdes2
+                        dqdes = dqdes2_right
+                        ddqdes = ddqdes2_right
                         # print(f'i = {i}, qdes = {qdes}')
 
             e[0+i*4:4+i*4] = data.qpos[legqpos][0+i*4:4+i*4]-qdes
+            # print(f'data.qpos = {data.qpos}')
             de[0+i*4:4+i*4] = data.qvel[legdofs][0+i*4:4+i*4]-dqdes
             
             u[legdofs[0+i*4:4+i*4]] = ddqdes - kp@e[0+i*4:4+i*4] - kd@de[0+i*4:4+i*4]
@@ -266,7 +302,7 @@ if __name__ == '__main__':
         return tau
 
     # run MuJoCo simulation
-    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f_imp, control_func_args=(memory,leg_virtual))
+    fin_dur = simh.simulate(is_slowed=0, control_func=ctrl_f, control_func_args=(memory,leg_virtual))
 
     # simout.plot(fin_dur, ['Скорость центра робота [м/с]'], [['v_x','v_y','v_z']])
 

@@ -55,7 +55,7 @@ def ik(x, y, z, l1, l2, l3, l4):
 
     return np.array([theta_1, theta_2, theta_3, theta_4])
 
-def param_traj(T_f, T_b, L, alfa, delta_thetas):
+def param_traj(isLeft, T_f, T_b, L, alfa, delta_thetas):
     #-----------------------------------------------------------
 
     # T_b - время движения по параболе в фазе опоры (если T_b = 0, то энд-эффектор движется просто по прямой)
@@ -78,11 +78,14 @@ def param_traj(T_f, T_b, L, alfa, delta_thetas):
     B_x = np.array([1.5 + step_length/2 * np.sin(rotation_angle), 1.5 - step_length/2 * np.sin(rotation_angle), 0, 0, 0, 0, 0, 0])
 
     y_cor = step_length/2 * np.cos(rotation_angle)
-    B_y = np.array([-y_cor, y_cor, 0, 0, 0, 0, 0, 0])
+    if isLeft:
+        B_y = np.array([-y_cor, y_cor, 0, 0, 0, 0, 0, 0])
+    else:
+        B_y = np.array([y_cor, -y_cor, 0, 0, 0, 0, 0, 0])
 
     # координата z отсчитывается от СК, связанной с корпусом (0,56 - высота подъёма корпуса над землёй)
     # Думаю, можно добавить этот параметр в перечень входных параметров функции (добавить этот выход НС)
-    B_z = np.array([-0.56, -0.56, 0, 0, 0, 0, 0, 0])
+    B_z = np.array([-0.7, -0.7, 0, 0, 0, 0, 0, 0])
 
     # Решаем систему уравнений
     C_x = np.linalg.lstsq(A, B_x, rcond=None)[0]
