@@ -95,6 +95,10 @@ def generate_scene():
         jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
 
+        jlims = ([-90, 90],[-120, 45],[-30, 90],[-90, 30])
+        # jlims = tuple([lim[0]*np.pi/180, lim[1]*np.pi/180] for lim in jlims) # to radians
+        # print(jlims)
+
         initial_q = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi] # for 1 leg
         initial_q_glob = [0, initial_q[1], initial_q[1]+initial_q[2], initial_q[1]+initial_q[2]+initial_q[3]]
         RyT = lambda ang: np.array([[np.cos(ang),0,-np.sin(ang)],[0,0,0],[np.sin(ang),0,np.cos(ang)]])
@@ -112,7 +116,7 @@ def generate_scene():
                                         #    iquat=[0.707107, 0, 0, 0.707107], 
                                         #    inertia=[0.0524193, 0.0303095, 0.0303095]
                                         )
-            link.add_joint(name=f'{link_name}{i+1}', axis=jaxis[i], damping=dampings[i])
+            link.add_joint(name=f'{link_name}{i+1}', axis=jaxis[i], damping=dampings[i], limited=True, range=jlims[i])
             link.add_geom(size=[link_r,0,0], fromto=[0,0,0,*ends[i]],
                         type=mujoco.mjtGeom.mjGEOM_CAPSULE, group=1,
                         # friction = [2, 0.005, 0.0003], condim=6
