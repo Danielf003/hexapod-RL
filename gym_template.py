@@ -233,13 +233,13 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         self,
         # xml_file: str =  os.path.join(os.getcwd(),"hexapod.xml"),
         xml_file: str = r"D:\hexapod.xml",
-        frame_skip: int = 4,
+        frame_skip: int = 1,
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
 
-        forward_reward_weight: float = 1.0,
+        forward_reward_weight: float = 1000.0,
         ctrl_cost_weight: float = 1e-3,
-        healthy_reward: float = 1.0,
-        stab_reward_weight_z = 1.0,
+        healthy_reward: float = 1,
+        stab_reward_weight_z = 10.0,
         # stab_reward_weight_y = 1.0,
 
         terminate_when_unhealthy: bool = True,
@@ -248,7 +248,7 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         healthy_z_range: Tuple[float, float] = (0.7, float("inf")),
 
         healthy_sin_z_range: Tuple[float, float] = (-0.25, 0.25),
-        # healthy_sin_y_range: Tuple[float, float] = (0.7, 1),
+        healthy_tau_range: Tuple[float, float] = (-10**4, 10**4),
 
         healthy_angle_range: Tuple[float, float] = (-100.0, 100.0),
         
@@ -285,7 +285,7 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         self._healthy_state_range = healthy_state_range
 
         self._healthy_sin_z_range = healthy_sin_z_range
-        # self._healthy_sin_y_range = healthy_sin_y_range
+        self._healthy_tau_range = healthy_tau_range
 
         self._stab_reward_weight_z = stab_reward_weight_z
         
@@ -328,8 +328,11 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
             low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float64
         )
 
+        # th = np.array([0, 0.25,-0.2,0])
         self.action_space = Box(
-            low=-np.inf, high=np.inf, shape=(8,), dtype=np.float64
+            # low= np.array([0, 0, 0, -0.44,     -0.17, 0, -0.2, -0.1]), high=np.array([50, 10, 2, 0.44,     0.17, 0.25, 0, 0.1]), shape=(8,), dtype=np.float64
+            # low= np.array([5, 0, 0.1, -0.44,     -0.10, 0, -0.2, -0.1]), high=np.array([50, 2, 1, 0.44,     0.10, 0.25, 0.2, 0.1]), shape=(8,), dtype=np.float64
+            low= np.array([5, 0, 0.5, -0.26,     0, 0, -0.2, 0]), high=np.array([20, 0.1, 1, 0.26,     0, 0.25, 0, 0]), shape=(8,), dtype=np.float64
         )
         # self.memory = InputHolder(MujocoEnv.dt, func)
         self.memory = InputHolder(self.model.opt.timestep, func)
@@ -363,14 +366,20 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         # min_angle, max_angle = self._healthy_angle_range
 
         min_sin_z, max_sin_z = self._healthy_sin_z_range
+        min_tau, max_tau = self._healthy_tau_range
         # min_sin_y, max_sin_y = self._healthy_sin_y_range
 
         # healthy_state = np.all(np.logical_and(min_state < state, state < max_state))
         # healthy_z = min_z < z < max_z
         healthy_angle_z = min_sin_z < c_z < max_sin_z
-        # healthy_angle_y = min_sin_y < c_y < max_sin_y
+        print(f'self.data.ctrl = {self.data.ctrl}')
+        healthy_tau = (np.abs(self.data.ctrl) < 10**7).all()
+        # healthy_angle_y  = min_sin_y < c_y < max_sin_y
+        # print(healthy_tau)
 
-        is_healthy = (healthy_angle_z)
+        is_healthy = all((healthy_angle_z, healthy_tau))
+        # is_healthy = healthy_angle_z
+        # is_healthy = np.array([healthy_angle_z, healthy_tau])
 
         return is_healthy
 
@@ -441,7 +450,7 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         dqdes = np.zeros(nj*1)
         ddqdes = np.zeros(nj*1)
 
-        # Выходы НС
+        # # Выходы НС
         # T_f = 2
         # T_b = 0
         # L = 2
@@ -449,6 +458,8 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
         # H = 1
         # delta_T = T_f
         # delta_thetas = np.array([0, 0.25,-0.2,0])
+        # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
+
         if use_memory:
             holder.update(action, t)
             T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
@@ -557,11 +568,14 @@ class HopperEnv8(MujocoEnv, utils.EzPickle):
     def _get_rew(self, moving_along_axes_y):
 
         forward_reward = self._forward_reward_weight * moving_along_axes_y
+        print(f'forward_reward = {forward_reward}')
         s_z = self.data.sensordata[2]
 
         stab_reward = - self._stab_reward_weight_z * abs(s_z) 
+        print(f'stab_reward = {stab_reward}')
 
         healthy_reward = self.healthy_reward
+        print(f'healthy_reward = {healthy_reward}')
         reward = forward_reward + healthy_reward + stab_reward
         # reward = forward_reward - stab_reward + healthy_reward
 
