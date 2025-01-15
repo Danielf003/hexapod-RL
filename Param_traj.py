@@ -1,6 +1,9 @@
 import numpy as np
 
+from Traj_thetas import thetas_traj
+
 def param_traj(T_f, T_b, L, alfa, delta_thetas):
+
 
     
     #-----------------------------------------------------------
@@ -70,3 +73,9 @@ def param_traj(T_f, T_b, L, alfa, delta_thetas):
     #-----------------------------------------------------------
 
     return C_x, C_y, C_z, a
+
+# T_f, T_b, L, alfa, delta_thetas =  50, 2, 1, 0.44, [0.17, 0.25, 0, 0.1]
+# C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
+# t=10
+# traject = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_func=None)
+# print(traject)
