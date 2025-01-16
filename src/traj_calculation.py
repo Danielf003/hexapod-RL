@@ -280,4 +280,4 @@ def thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a, J_inv_func=None, dJ_dt_f
         # ddq = ddq_b + np.array([ddq1, ddq2, ddq3, ddq4])
         ddq = np.zeros(4)
 
-    return q, dq, ddq
+    return q-np.array([0,0,0,2*np.pi]), dq, ddq

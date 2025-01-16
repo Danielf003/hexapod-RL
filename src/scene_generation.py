@@ -95,7 +95,7 @@ def generate_scene():
         jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
 
-        jlims = ([-90, 90],[-120, 45],[-30, 90],[-90+360, 30+360])
+        jlims = ([-90, 90],[-120, 45],[-30, 90],[-90, 30])
         # jlims = tuple([lim[0]*np.pi/180, lim[1]*np.pi/180] for lim in jlims) # to radians
         # print(jlims)
 
@@ -133,7 +133,8 @@ def generate_scene():
     l, w, h = 4., 2., .5
     n_legs = 6
     # box_pos = [0,0,1+h/2]
-    box_pos = [0,0,1.1+h/2] # для неровной поверхности нужно спавнить выше
+    z_shift = 0.95 # для ровной 0.95
+    box_pos = [0,0,z_shift+h/2] # для неровной поверхности нужно спавнить выше
     box = spec.worldbody.add_body(name="box", pos=box_pos)
     box.add_freejoint()
     box.add_geom(size=[w/2,l/2,h/2], type=mujoco.mjtGeom.mjGEOM_BOX)
@@ -178,7 +179,7 @@ def generate_scene():
     # Collision is enabled only for pairs world-rollers(spheres) and world-chassie(box). 
     # Hub and visual wheel are disabled
 
-    input_saturation = [-1e4-500,1e4+500] # Nm
+    input_saturation = [-1e5,1e5] # Nm
     for i in range(n_legs):
         for j in range(4):
             spec.add_actuator(name=f'leg{i+1}-l{j+1}', target=f'leg{i+1}-l{j+1}', trntype=mujoco.mjtTrn.mjTRN_JOINT,
