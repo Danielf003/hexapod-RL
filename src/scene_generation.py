@@ -26,7 +26,7 @@ def disable_parts_contact(spec, parts_lists):
 def generate_scene():
     spec = mujoco.MjSpec()
 
-    spec.option.timestep = 0.002
+    spec.option.timestep = 0.004
     getattr(spec.visual, 'global').azimuth = -135
     getattr(spec.visual, 'global').elevation = -20
     spec.visual.scale.jointlength = 3.6
@@ -95,7 +95,7 @@ def generate_scene():
         jaxis = ([0,0,1],[0,-1,0],[0,-1,0],[0,-1,0])
         dampings = (.001,)*4
 
-        jlims = ([-90, 90],[-120, 45],[-30, 90],[-90, 30])
+        jlims = ([-45, 45],[-120, 45],[-30, 90],[-90, 30])
         # jlims = tuple([lim[0]*np.pi/180, lim[1]*np.pi/180] for lim in jlims) # to radians
         # print(jlims)
 
