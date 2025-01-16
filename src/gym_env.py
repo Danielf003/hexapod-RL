@@ -14,8 +14,8 @@ from traj_calculation import param_traj
 from traj_calculation import thetas_traj
 
 DEFAULT_CAMERA_CONFIG = {
-    "trackbodyid": 0,
-    "distance": 3.0,
+    "trackbodyid": 1,
+    "distance": 4.5,
     "lookat": np.array((0.0, 0.0, 1.15)),
     "elevation": -20.0,
 }
@@ -239,8 +239,8 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
 
         forward_reward_weight: float = 100.0,
-        ctrl_cost_weight: float = 1e-3,
-        healthy_reward: float = 0,
+        ctrl_cost_weight: float = 1e-2,
+        healthy_reward: float = 0*2e-3,
         stab_reward_weight_z = 1.0,
         # stab_reward_weight_y = 1.0,
 
@@ -334,7 +334,7 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         self.action_space = Box(
             # low= np.array([0, 0, 0, -0.44,     -0.17, 0, -0.2, -0.1]), high=np.array([50, 10, 2, 0.44,     0.17, 0.25, 0, 0.1]), shape=(8,), dtype=np.float64
             # low= np.array([5, 0, 0.1, -0.44,     -0.10, 0, -0.2, -0.1]), high=np.array([50, 2, 1, 0.44,     0.10, 0.25, 0.2, 0.1]), shape=(8,), dtype=np.float64
-            low= np.array([5, 0, 0.5, -0.2,     -0.1, -0.1, -0.2, -0.1]), high=np.array([20, 0.1, 1, 0.2,     0.1, 0.25, 0.2, 0.1]), shape=(8,), dtype=np.float64
+            low= np.array([5, 0, 0.5, -0.2*0,     0, -0.1, -0.2, -0.1]), high=np.array([20, 0.1*0, 1, 0.2*0,     0, 0.25*0-0.1, 0.2*0-0.2, 0.1*0-0.1]), shape=(8,), dtype=np.float64
         )
         # self.memory = InputHolder(MujocoEnv.dt, func)
         self.memory = InputHolder(self.model.opt.timestep, func)
@@ -353,7 +353,10 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         return self.is_healthy * self._healthy_reward
 
     def control_cost(self, action):
-        control_cost = self._ctrl_cost_weight * np.sum(np.square(action))
+        # control_cost = self._ctrl_cost_weight * np.sum(np.square(action))
+        violations = (action>self.action_space.high)*np.abs(action-self.action_space.high) + (action<self.action_space.low)*np.abs(action-self.action_space.low)
+        control_cost = self._ctrl_cost_weight * np.sum(violations)
+        # print(control_cost)
         return control_cost
 
     @property
@@ -375,13 +378,18 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         # healthy_z = min_z < z < max_z
         healthy_angle_z = min_sin_z < c_z < max_sin_z
         # print(f'self.data.ctrl = {self.data.ctrl}')
+        ##print(self.data.ctrl)
 
         healthy_tau = (np.abs(self.data.ctrl) < 10**7).all()
+
+        healthy_qvel = (np.abs(self.data.qvel[6:]) < 1e2).all()
+        healthy_zvel = (np.abs(self.data.qvel[2]) < 4).all()
+        healthy_xvel = (np.abs(self.data.qvel[0]) < 5).all()
         
         # healthy_angle_y  = min_sin_y < c_y < max_sin_y
         # print(healthy_tau)
 
-        is_healthy = all((healthy_angle_z, healthy_tau))
+        is_healthy = all((healthy_angle_z, healthy_tau, healthy_qvel, healthy_zvel, healthy_xvel))
         # is_healthy = healthy_angle_z
         # is_healthy = np.array([healthy_angle_z, healthy_tau])
 
@@ -528,6 +536,9 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
     
     def ctrl_f_new(self, action, holder: InputHolder, leg_virtual: LegRTB):
         t = self.data.time
+        # print(action)
+        # print(np.clip(action, self.action_space.low, self.action_space.high))
+        # action = np.clip(action, self.action_space.low, self.action_space.high)
 
         legdofs=self.model.jnt_dofadr[1:]
         legqpos=self.model.jnt_qposadr[1:]
@@ -655,7 +666,8 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         # print(f'time: {self.data.time}')
         y_position_before = self.data.qpos[1]
 
-        ctrl = self.ctrl_f_new(action, self.memory, self.leg_virtual)
+        action_clipped = np.clip(action, self.action_space.low, self.action_space.high)
+        ctrl = self.ctrl_f_new(action_clipped, self.memory, self.leg_virtual)
 
         self.do_simulation(ctrl, self.frame_skip)
         # x_position_after = self.data.qpos[0]
@@ -668,7 +680,7 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         
 
         observation = self._get_obs()
-        reward, reward_info = self._get_rew(moving_along_axes_y)
+        reward, reward_info = self._get_rew(moving_along_axes_y, action)
         terminated = (not self.is_healthy) and self._terminate_when_unhealthy
         info = {
             # "x_position": x_position_after,
@@ -685,7 +697,7 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return observation, reward, terminated, False, info
 
-    def _get_rew(self, moving_along_axes_y):
+    def _get_rew(self, moving_along_axes_y, action):
 
         forward_reward = self._forward_reward_weight * moving_along_axes_y
         # print(f'forward_reward = {forward_reward}')
@@ -696,13 +708,13 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
 
         healthy_reward = self.healthy_reward
         # print(f'healthy_reward = {healthy_reward}')
-        reward = forward_reward + healthy_reward + stab_reward
+        rewards = forward_reward + healthy_reward + stab_reward*0
         # reward = forward_reward - stab_reward + healthy_reward
 
-        # ctrl_cost = self.control_cost(action)
-        # costs = ctrl_cost
+        ctrl_cost = self.control_cost(action)
+        costs = ctrl_cost
 
-        # reward = rewards - costs
+        reward = rewards - costs
 
         reward_info = {
             "reward_forward": forward_reward,
