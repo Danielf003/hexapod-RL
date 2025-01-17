@@ -62,10 +62,10 @@ def generate_scene():
     hr = np.random.rand(len(xr),len(yr))*.5
     eulr = np.random.randint(0,2,(len(xr),len(yr),3))
     zi = 0
-    li, wi = .2, .2
+    li, wi = .6, .6
     for i,xi in enumerate(xr):
         for j,yi in enumerate(yr):
-            spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[li, wi, li], pos=[xi,yi,zi], euler=np.dot(eulr[i,j,:],45))
+            spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[li/2, wi/2, li/2], pos=[xi,yi,zi], euler=np.dot(eulr[i,j,:],45))
             # spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[li, wi, hr[i,j]], pos=[xi,yi,zi])
 
     # mesh_filenames = ['board1.stl', 'board2.stl', 'box1.stl', 'box2.stl', 'chair1.stl', 
@@ -133,7 +133,8 @@ def generate_scene():
     l, w, h = 4., 2., .5
     n_legs = 6
     # box_pos = [0,0,1+h/2]
-    z_shift = 0.95 # для ровной 0.95
+    # z_shift = 0.95 # для ровной 0.95
+    z_shift = 1.2 # для неровной
     box_pos = [0,0,z_shift+h/2] # для неровной поверхности нужно спавнить выше
     box = spec.worldbody.add_body(name="box", pos=box_pos)
     box.add_freejoint()
