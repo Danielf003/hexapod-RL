@@ -238,7 +238,7 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         frame_skip: int = 1,
         default_camera_config: Dict[str, Union[float, int]] = DEFAULT_CAMERA_CONFIG,
 
-        forward_reward_weight: float = 100.0,
+        forward_reward_weight: float = 300.0,
         ctrl_cost_weight: float = 1e-2,
         healthy_reward: float = 0*2e-3,
         stab_reward_weight_z = 1.0,
@@ -334,7 +334,8 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         self.action_space = Box(
             # low= np.array([0, 0, 0, -0.44,     -0.17, 0, -0.2, -0.1]), high=np.array([50, 10, 2, 0.44,     0.17, 0.25, 0, 0.1]), shape=(8,), dtype=np.float64
             # low= np.array([5, 0, 0.1, -0.44,     -0.10, 0, -0.2, -0.1]), high=np.array([50, 2, 1, 0.44,     0.10, 0.25, 0.2, 0.1]), shape=(8,), dtype=np.float64
-            low= np.array([5, 0, 0.5, -0.2*0,     0, -0.1, -0.2, -0.1]), high=np.array([20, 0.1*0, 1, 0.2*0,     0, 0.25*0-0.1, 0.2*0-0.2, 0.1*0-0.1]), shape=(8,), dtype=np.float64
+            # low= np.array([5, 0, 0.5, -0.2*0,     0, -0.1, -0.2, -0.1]), high=np.array([20, 0.1*0, 1, 0.2*0,     0, 0.25*0-0.1, 0.2*0-0.2, 0.1*0-0.1]), shape=(8,), dtype=np.float64
+            low= np.array([5, 0, 0.5, -0.2*0,     0, np.deg2rad(15), -np.deg2rad(10), -np.deg2rad(10)]), high=np.array([20, 0.1*0, 1, 0.2*0,     0, np.deg2rad(25), np.deg2rad(25), np.deg2rad(10)]), shape=(8,), dtype=np.float64
         )
         # self.memory = InputHolder(MujocoEnv.dt, func)
         self.memory = InputHolder(self.model.opt.timestep, func)
@@ -413,11 +414,102 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         # print(f'observation_size = {observation.size}')
         return observation
 
-    def ctrl_q2tau(self, qdes, dqdes, ddqdes):
+    # def ctrl_f(self, action, holder: InputHolder, leg_virtual: LegRTB):
+
+    #     # action - T_f, T_b, L, alfa, delta_thetas
+    #     # print(f'time: {self.data.time}')
+    #     t = self.data.time
+
+    #     legdofs= self.model.jnt_dofadr[1:]
+    #     legqpos=self.model.jnt_qposadr[1:]
+
+    #     use_traj = 1
+    #     use_memory = 1
+    #     use_rtb_jacs = 0
+
+    #     nj = 4
+    #     nlegs = 6
+    #     # qdes = np.array([0, 1.22, 4.01, 5.76])
+    #     qdes = np.zeros(nj*1)
+    #     dqdes = np.zeros(nj*1)
+    #     ddqdes = np.zeros(nj*1)
+
+    #     # # Выходы НС
+    #     # T_f = 2
+    #     # T_b = 0
+    #     # L = 2
+    #     # alfa = 0.26
+    #     # H = 1
+    #     # delta_T = T_f
+    #     # delta_thetas = np.array([0, 0.25,-0.2,0])
+    #     # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
+
+    #     if use_memory:
+    #         holder.update(action, t)
+    #         T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
+    #     else:
+    #         C_x, C_y, C_z, a = param_traj(action)        
+
+    #     if use_traj:
+    #         if use_rtb_jacs:
+    #             qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+    #             qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
+    #             qdes1[2] = -qdes1[2]
+    #             qdes2[2] = -qdes2[2]
+    #         else:
+    #             qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
+    #             qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a)
+    #             qdes1[2] = -qdes1[2]
+    #             qdes2[2] = -qdes2[2]
+
+    #         q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
+    #         qdes1 = qdes1 - np.array(q0)
+    #         qdes2 = qdes2 - np.array(q0)
+
+    #     # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
+    #     kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
+    #     u = np.zeros( self.model.nv)
+    #     e = np.zeros(nj*nlegs)
+    #     de = np.zeros(nj*nlegs)
+    #     # print(f'time: { model.time}')
+    #     for i in range(nlegs):
+    #         if use_traj:
+    #             if i in (0, 2, 4):
+    #                     qdes = qdes1
+    #                     # qdes[2] = qdes1[2] - 2*np.pi
+    #                     # qdes[3] = qdes1[3] - 2*np.pi
+    #                     dqdes = dqdes1
+    #                     ddqdes = ddqdes1
+    #                     # print(f'i = {i}, qdes = {qdes}')
+    #             else:
+    #                     qdes = qdes2
+    #                     # qdes[2] = -qdes2[2] - 2*np.pi
+    #                     # qdes[3] = -qdes2[3] - 2*np.pi
+    #                     dqdes = dqdes2
+    #                     ddqdes = ddqdes2
+    #                     # print(f'i = {i}, qdes = {qdes}')
+
+    #         e[0+i*4:4+i*4] =  self.data.qpos[legqpos][0+i*4:4+i*4]-qdes
+    #         de[0+i*4:4+i*4] =  self.data.qvel[legdofs][0+i*4:4+i*4]-dqdes
+            
+    #         u[legdofs[0+i*4:4+i*4]] = ddqdes - kp@e[0+i*4:4+i*4] - kd@de[0+i*4:4+i*4]
+        
+    #     # u[legdofs] = np.array([1,1,1,1])
+    #     # print(model.jnt_dofadr)
+    #     Mu = np.empty( self.model.nv)
+    #     mujoco.mj_mulM( self.model,  self.data, Mu, u)#+c)
+    #     tau = Mu +  self.data.qfrc_bias
+    #     tau = tau[legdofs]
+
+    #     # print(tau)
+    #     # print(data.qpos[:4])
+    #     return tau
+    
+    def qdes2tau_CTC(self, qdes, dqdes, ddqdes):
         legdofs=self.model.jnt_dofadr[1:]
         legqpos=self.model.jnt_qposadr[1:]
 
-        nj = 4
+        # nj = 4
         nlegs = 6
 
         # qdes = np.zeros(nj*nlegs)
@@ -427,7 +519,8 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         de = self.data.qvel[legdofs]-dqdes
 
         # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
-        kp, kd = np.diag([5000,4000,3000,13000]*nlegs), np.diag([90,300,200,200]*nlegs)
+        # kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
+        kp, kd = np.diag([5000,4000,3000,4000]*nlegs), np.diag([90,300,200,200]*nlegs)
         u = np.zeros(self.model.nv)
         u[legdofs] = ddqdes - kp@e - kd@de
         
@@ -440,17 +533,9 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         # print(tau)
         # print(data.qpos[:4])
         return tau
-    
 
-    # define control function
-    def ctrl_f(self, action, holder: InputHolder, leg_virtual: LegRTB):
-
-        # action - T_f, T_b, L, alfa, delta_thetas
-        # print(f'time: {self.data.time}')
+    def action2qdes_3pod(self, action, holder: InputHolder, leg_virtual: LegRTB):
         t = self.data.time
-
-        legdofs= self.model.jnt_dofadr[1:]
-        legqpos=self.model.jnt_qposadr[1:]
 
         use_traj = 1
         use_memory = 1
@@ -459,100 +544,9 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
         nj = 4
         nlegs = 6
         # qdes = np.array([0, 1.22, 4.01, 5.76])
-        qdes = np.zeros(nj*1)
-        dqdes = np.zeros(nj*1)
-        ddqdes = np.zeros(nj*1)
-
-        # # Выходы НС
-        # T_f = 2
-        # T_b = 0
-        # L = 2
-        # alfa = 0.26
-        # H = 1
-        # delta_T = T_f
-        # delta_thetas = np.array([0, 0.25,-0.2,0])
-        # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)
-
-        if use_memory:
-            holder.update(action, t)
-            T_f, T_b, C_x, C_y, C_z, a = holder.get_output()
-        else:
-            C_x, C_y, C_z, a = param_traj(action)        
-
-        if use_traj:
-            if use_rtb_jacs:
-                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
-                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
-                qdes1[2] = -qdes1[2]
-                qdes2[2] = -qdes2[2]
-            else:
-                qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
-                qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, T_f, C_x, C_y, C_z, a)
-                qdes1[2] = -qdes1[2]
-                qdes2[2] = -qdes2[2]
-
-            q0 = [0, 1.22, 4.01-2*np.pi, 5.76-2*np.pi]
-            qdes1 = qdes1 - np.array(q0)
-            qdes2 = qdes2 - np.array(q0)
-
-        # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
-        kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
-        u = np.zeros( self.model.nv)
-        e = np.zeros(nj*nlegs)
-        de = np.zeros(nj*nlegs)
-        # print(f'time: { model.time}')
-        for i in range(nlegs):
-            if use_traj:
-                if i in (0, 2, 4):
-                        qdes = qdes1
-                        # qdes[2] = qdes1[2] - 2*np.pi
-                        # qdes[3] = qdes1[3] - 2*np.pi
-                        dqdes = dqdes1
-                        ddqdes = ddqdes1
-                        # print(f'i = {i}, qdes = {qdes}')
-                else:
-                        qdes = qdes2
-                        # qdes[2] = -qdes2[2] - 2*np.pi
-                        # qdes[3] = -qdes2[3] - 2*np.pi
-                        dqdes = dqdes2
-                        ddqdes = ddqdes2
-                        # print(f'i = {i}, qdes = {qdes}')
-
-            e[0+i*4:4+i*4] =  self.data.qpos[legqpos][0+i*4:4+i*4]-qdes
-            de[0+i*4:4+i*4] =  self.data.qvel[legdofs][0+i*4:4+i*4]-dqdes
-            
-            u[legdofs[0+i*4:4+i*4]] = ddqdes - kp@e[0+i*4:4+i*4] - kd@de[0+i*4:4+i*4]
-        
-        # u[legdofs] = np.array([1,1,1,1])
-        # print(model.jnt_dofadr)
-        Mu = np.empty( self.model.nv)
-        mujoco.mj_mulM( self.model,  self.data, Mu, u)#+c)
-        tau = Mu +  self.data.qfrc_bias
-        tau = tau[legdofs]
-
-        # print(tau)
-        # print(data.qpos[:4])
-        return tau
-    
-    def ctrl_f_new(self, action, holder: InputHolder, leg_virtual: LegRTB):
-        t = self.data.time
-        # print(action)
-        # print(np.clip(action, self.action_space.low, self.action_space.high))
-        # action = np.clip(action, self.action_space.low, self.action_space.high)
-
-        legdofs=self.model.jnt_dofadr[1:]
-        legqpos=self.model.jnt_qposadr[1:]
-
-        use_traj = 1
-        use_memory = 1
-        use_rtb_jacs = 1
-
-        nj = 4
-        nlegs = 6
-        # qdes = np.array([0, 1.22, 4.01, 5.76])
-        qdes = np.zeros(nj*1)
-        dqdes = np.zeros(nj*1)
-        ddqdes = np.zeros(nj*1)
+        qdes = np.zeros(nj*nlegs)
+        dqdes = np.zeros(nj*nlegs)
+        ddqdes = np.zeros(nj*nlegs)
 
         # # Выходы НС
         # T_f = 7
@@ -565,20 +559,17 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
 
         # C_x_left, C_y_left, C_z_left, a_left = param_traj(True, T_f, T_b, L, alfa, delta_thetas)
         # C_x_right, C_y_right, C_z_right, a_right = param_traj(False, T_f, T_b, L, alfa, delta_thetas)
-
         # print(f'alfa = {alfa}')
-        if use_memory:
-            holder.update(action, t)
-            T_f, T_b, C_x_left, C_y_left, C_z_left, a_left, C_x_right, C_y_right, C_z_right, a_right = holder.get_output()
-
-        else:
-            # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)   
-
-            C_x_left, C_y_left, C_z_left, a_left = param_traj(True, action)
-            C_x_right, C_y_right, C_z_right, a_right = param_traj(False, action)
-
 
         if use_traj:
+            if use_memory:
+                holder.update(action, t)
+                T_f, T_b, C_x_left, C_y_left, C_z_left, a_left, C_x_right, C_y_right, C_z_right, a_right = holder.get_output()
+            else:
+                # C_x, C_y, C_z, a = param_traj(T_f, T_b, L, alfa, delta_thetas)   
+                C_x_left, C_y_left, C_z_left, a_left = param_traj(True, action)
+                C_x_right, C_y_right, C_z_right, a_right = param_traj(False, action)
+
             if use_rtb_jacs:
                 qdes1_left, dqdes1_left, ddqdes1_left = thetas_traj(t, T_f, T_b, 0, C_x_left, C_y_left, C_z_left, a_left, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
                 qdes1_right, dqdes1_right, ddqdes1_right = thetas_traj(t, T_f, T_b, 0, C_x_right, C_y_right, C_z_right, a_right, leg_virtual.calc_Jinv, leg_virtual.calc_Jdot)
@@ -592,10 +583,10 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
             else:
                 # qdes1, dqdes1, ddqdes1 = thetas_traj(t, T_f, T_b, 0, C_x, C_y, C_z, a)
                 # qdes2, dqdes2, ddqdes2 = thetas_traj(t, T_f, T_b, delta_T, C_x, C_y, C_z, a)
-                qdes1_left, dqdes1_left, ddqdes1_left = thetas_traj(t, T_f, T_b, 0, C_x_left, C_y_left, C_z_left, a_left)
-                qdes1_right, dqdes1_right, ddqdes1_right = thetas_traj(t, T_f, T_b, 0, C_x_right, C_y_right, C_z_right, a_right)
-                qdes2_left, dqdes2_left, ddqdes2_left = thetas_traj(t, T_f, T_b, T_f, C_x_left, C_y_left, C_z_left, a_left)
-                qdes2_right, dqdes2_right, ddqdes2_right = thetas_traj(t, T_f, T_b, T_f, C_x_right, C_y_right, C_z_right, a_right)
+                qdes1_left, dqdes1_left, ddqdes1_left = thetas_traj(t, T_f, T_b, 0, C_x_left, C_y_left, C_z_left, a_left) # deltaT = 0
+                qdes1_right, dqdes1_right, ddqdes1_right = thetas_traj(t, T_f, T_b, 0, C_x_right, C_y_right, C_z_right, a_right) # deltaT = 0
+                qdes2_left, dqdes2_left, ddqdes2_left = thetas_traj(t, T_f, T_b, T_f, C_x_left, C_y_left, C_z_left, a_left) # deltaT = Tf
+                qdes2_right, dqdes2_right, ddqdes2_right = thetas_traj(t, T_f, T_b, T_f, C_x_right, C_y_right, C_z_right, a_right) # deltaT = Tf
                 qdes1_left[2] = -qdes1_left[2]
                 qdes1_right[2] = -qdes1_right[2]
                 qdes2_left[2] = -qdes2_left[2]
@@ -607,69 +598,36 @@ class HexapodEnv(MujocoEnv, utils.EzPickle):
             qdes2_left = qdes2_left - np.array(q0)
             qdes2_right = qdes2_right - np.array(q0)
 
-        # kp, kd = np.diag([50,40,30,40]*nlegs), np.diag([2,5,2,2]*nlegs)
-        kp, kd = np.diag([5000,4000,3000,13000]*1), np.diag([90,300,200,200]*1)
-        u = np.zeros(self.model.nv)
-        e = np.zeros(nj*nlegs)
-        de = np.zeros(nj*nlegs)
-        # print(f'time: {data.time}')
         for i in range(nlegs):
             if use_traj:
-                
                 if i in (0, 4):
-                        qdes = qdes1_right
-                        dqdes = dqdes1_right
-                        ddqdes = ddqdes1_right
-                        
+                    qdes[0+i*4:4+i*4] = qdes1_right
+                    dqdes[0+i*4:4+i*4] = dqdes1_right
+                    ddqdes[0+i*4:4+i*4] = ddqdes1_right
                 elif i == 2:
-                        qdes = qdes1_left
-                        dqdes = dqdes1_left
-                        ddqdes = ddqdes1_left
+                    qdes[0+i*4:4+i*4] = qdes1_left
+                    dqdes[0+i*4:4+i*4] = dqdes1_left
+                    ddqdes[0+i*4:4+i*4] = ddqdes1_left
                 elif i in (1, 3):
-                        qdes = qdes2_left
-                        dqdes = dqdes2_left
-                        ddqdes = ddqdes2_left
-                     
+                    qdes[0+i*4:4+i*4] = qdes2_left
+                    dqdes[0+i*4:4+i*4] = dqdes2_left
+                    ddqdes[0+i*4:4+i*4] = ddqdes2_left
                 else:
-                        qdes = qdes2_right
-                        dqdes = dqdes2_right
-                        ddqdes = ddqdes2_right
+                    qdes[0+i*4:4+i*4] = qdes2_right
+                    dqdes[0+i*4:4+i*4] = dqdes2_right
+                    ddqdes[0+i*4:4+i*4] = ddqdes2_right
+        return qdes, dqdes, ddqdes
                         
-
-            e[0+i*4:4+i*4] = self.data.qpos[legqpos][0+i*4:4+i*4]-qdes
-            # print(f'data.qpos = {data.qpos}')
-            de[0+i*4:4+i*4] = self.data.qvel[legdofs][0+i*4:4+i*4]-dqdes
-            
-            u[legdofs[0+i*4:4+i*4]] = ddqdes - kp@e[0+i*4:4+i*4] - kd@de[0+i*4:4+i*4]
-        
-        # u[legdofs] = np.array([1,1,1,1])
-        # print(model.jnt_dofadr)
-        Mu = np.empty(self.model.nv)
-        mujoco.mj_mulM(self.model, self.data, Mu, u)#+c)
-        tau = Mu + self.data.qfrc_bias
-        tau = tau[legdofs]
-        # print(tau)
-        # print(data.qpos[:4])
-        return tau
-    
-    def action2control(self, inp):
-        # self.data
-        # self.model
-        nj = 4
-        nlegs = 6
-        
-        ctrl = self.ctrl_q2tau()
-        return ctrl
-
     def step(self, action):
         # x_position_before = self.data.qpos[0]
         # print(f'time: {self.data.time}')
         y_position_before = self.data.qpos[1]
 
         action_clipped = np.clip(action, self.action_space.low, self.action_space.high)
-        ctrl = self.ctrl_f_new(action_clipped, self.memory, self.leg_virtual)
+        qdes, dqdes, ddqdes = self.action2qdes_3pod(action_clipped, self.memory, self.leg_virtual)
+        torques = self.qdes2tau_CTC(qdes, dqdes, ddqdes)
 
-        self.do_simulation(ctrl, self.frame_skip)
+        self.do_simulation(torques, self.frame_skip)
         # x_position_after = self.data.qpos[0]
 
         y_position_after = self.data.qpos[1]
