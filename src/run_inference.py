@@ -27,7 +27,7 @@ if __name__ == '__main__':
         max_episode_steps=STEPS_MAX,
         reward_threshold=1.76*300,
     )
-    env = gym.make('Hexapod-v0', render_mode='human', max_geom=7000)
+    env = gym.make('Hexapod-v0', render_mode='rgb_array', max_geom=7000)
 
     #Later to restore:
     n_hidden = 80
