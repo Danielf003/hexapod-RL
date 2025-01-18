@@ -11,7 +11,7 @@ import gymnasium as gym
 from scipy.signal import lfilter
 import matplotlib.pyplot as plt
 
-from IPython import display
+# from IPython import display
 
 def show_state(env, episode=0, step=0, info=""):
     plt.figure(3)
@@ -20,8 +20,8 @@ def show_state(env, episode=0, step=0, info=""):
     plt.title("%s | Eposide: %d | Step: %d %s" % ('Cart-pole-v1', episode, step, info))
     plt.axis('off')
 
-    display.clear_output(wait=True)
-    display.display(plt.gcf())
+    # display.clear_output(wait=True)
+    # display.display(plt.gcf())
 
 
 # Чтобы не прописывать все слои сети руками
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         id="Hexapod-v0",
         entry_point="gym_env:HexapodEnv",
         max_episode_steps=STEPS_MAX,
-        reward_threshold=200,
+        reward_threshold=1.76*300,
     )
     env = gym.make('Hexapod-v0', render_mode='human', max_geom=7000)
     # env = gym.make('CartPole-v1', render_mode='rgb_array')
@@ -247,7 +247,7 @@ if __name__ == '__main__':
 
     # Execution parameters
     SHOW_ANIMATION = False
-    EPISODES_MAX = 140
+    EPISODES_MAX = 100
     
     DESIRED_STEPS = 250
 
