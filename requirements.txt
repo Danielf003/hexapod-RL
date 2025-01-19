@@ -1,5 +1,5 @@
-mujoco>=3.2.6
-gym[classic_control]
-roboticstoolbox-python
-matplotlib>=3.8
-numpy
+mujoco==3.2.6
+gymnasium[classic_control]
+roboticstoolbox-python>=1.1.0
+scipy==1.11.4
+imageio
